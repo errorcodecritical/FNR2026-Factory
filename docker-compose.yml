@@ -91,17 +91,18 @@ services:
     container_name: rf2o-laser-odometry
     privileged: true
     network_mode: host
+    volumes:
+      - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-    depends_on:
-      - rplidar
     command: >
       bash -c "
       source /opt/ros/jazzy/setup.bash &&
       source /docker_ws/install/setup.bash &&
       sleep 3 &&
-      ros2 launch rf2o_laser_odometry rf2o_laser_odometry.launch.py
+      ros2 run rf2o_laser_odometry rf2o_laser_odometry_node \
+      --ros-args --params-file /root/config/rf2o_params.yaml
       "
 
   # IMU Filter - filters raw IMU data
@@ -142,9 +143,6 @@ services:
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-    depends_on:
-      - rf2o_odometry
-      - imu_filter
     command: >
       bash -c "
         source /opt/ros/jazzy/setup.bash &&
