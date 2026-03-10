@@ -4,25 +4,25 @@
 // PIN DEFINITIONS
 // ============================================================================
 
-// H-Bridge 1 - Motors 1 & 2
+// H-Bridge 1 - Motors 1 & 2 (direction only)
 #define MOTOR1_IN1  2
 #define MOTOR1_IN2  3
 #define MOTOR2_IN1  4
 #define MOTOR2_IN2  5
 
-// H-Bridge 2 - Motors 3 & 4
+// H-Bridge 2 - Motors 3 & 4 (direction only)
 #define MOTOR3_IN1  6
 #define MOTOR3_IN2  7
 #define MOTOR4_IN1  8
 #define MOTOR4_IN2  9
 
-// Encoders
-#define MOTOR1_ENC_A  10
-#define MOTOR1_ENC_B  11
+// Encoders (moved to 18-25 to free up 10-13 for PWM)
+#define MOTOR1_ENC_A  11
+#define MOTOR1_ENC_B  10
 #define MOTOR2_ENC_A  12
 #define MOTOR2_ENC_B  13
-#define MOTOR3_ENC_A  14
-#define MOTOR3_ENC_B  15
+#define MOTOR3_ENC_A  15
+#define MOTOR3_ENC_B  14
 #define MOTOR4_ENC_A  16
 #define MOTOR4_ENC_B  17
 
@@ -61,7 +61,6 @@ void updateEncoder(uint8_t motor_id) {
   int encoded = (MSB << 1) | LSB;
   int sum = (motor->last_encoded << 2) | encoded;
   
-  // Quadrature encoding state machine
   if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) {
     motor->encoder_count++;
   }
@@ -72,7 +71,6 @@ void updateEncoder(uint8_t motor_id) {
   motor->last_encoded = encoded;
 }
 
-// ISR wrappers for each motor
 void encoderISR_Motor1() { updateEncoder(0); }
 void encoderISR_Motor2() { updateEncoder(1); }
 void encoderISR_Motor3() { updateEncoder(2); }
@@ -89,19 +87,19 @@ void setMotorSpeed(uint8_t motor_id, int16_t speed) {
   motor->speed = constrain(speed, -255, 255);
   
   if (speed > 0) {
-    // Forward
+    // Forward: IN1=HIGH, IN2=LOW, PWM = speed
     analogWrite(motor->in1_pin, speed);
-    analogWrite(motor->in2_pin, 0);
+    digitalWrite(motor->in2_pin, LOW);
   } 
   else if (speed < 0) {
-    // Reverse
-    analogWrite(motor->in1_pin, 0);
+    // Reverse: IN1=LOW, IN2=HIGH, PWM = |speed|
+    digitalWrite(motor->in1_pin, LOW);
     analogWrite(motor->in2_pin, -speed);
   } 
   else {
-    // Stop (brake)
-    analogWrite(motor->in1_pin, 0);
-    analogWrite(motor->in2_pin, 0);
+    // Stop (brake): IN1=LOW, IN2=LOW, PWM = 0
+    digitalWrite(motor->in1_pin, LOW);
+    digitalWrite(motor->in2_pin, LOW);
   }
 }
 
@@ -113,17 +111,14 @@ void stopAllMotors() {
 
 long getEncoderCount(uint8_t motor_id) {
   if (motor_id >= 4) return 0;
-  
   noInterrupts();
   long count = motors[motor_id].encoder_count;
   interrupts();
-  
   return count;
 }
 
 void resetEncoder(uint8_t motor_id) {
   if (motor_id >= 4) return;
-  
   noInterrupts();
   motors[motor_id].encoder_count = 0;
   interrupts();
@@ -148,44 +143,29 @@ Command Protocol (ASCII):
 - Reset all encoders: "RA\n"
 - Stop all motors: "S\n"
 - Get status:      "?\n"
-
-Examples:
-  M0 200    -> Set motor 0 to speed 200 (forward)
-  M1 -150   -> Set motor 1 to speed -150 (reverse)
-  E0        -> Get encoder count for motor 0
-  EA        -> Get all encoder counts
-  R0        -> Reset encoder 0
-  RA        -> Reset all encoders
-  S         -> Stop all motors
-  ?         -> Get status of all motors
 */
 
 String inputBuffer = "";
 
 void processCommand(String command) {
   command.trim();
-  
   if (command.length() == 0) return;
   
   char cmd = command.charAt(0);
   
   switch (cmd) {
     case 'M': {
-      // Set motor speed: M<id> <speed>
       int spaceIndex = command.indexOf(' ');
       if (spaceIndex == -1) {
         Serial.println("ERROR: Invalid motor command format");
         return;
       }
-      
       uint8_t motor_id = command.substring(1, spaceIndex).toInt();
       int16_t speed = command.substring(spaceIndex + 1).toInt();
-      
       if (motor_id >= 4) {
         Serial.println("ERROR: Motor ID must be 0-3");
         return;
       }
-      
       setMotorSpeed(motor_id, speed);
       Serial.print("OK: Motor ");
       Serial.print(motor_id);
@@ -195,23 +175,19 @@ void processCommand(String command) {
     }
     
     case 'E': {
-      // Get encoder count
       if (command.length() == 2 && command.charAt(1) == 'A') {
-        // Get all encoders
         Serial.print("ENCODERS:");
         for (uint8_t i = 0; i < 4; i++) {
           Serial.print(" ");
           Serial.print(getEncoderCount(i));
         }
         Serial.println();
-      } 
-      else {
+      } else {
         uint8_t motor_id = command.substring(1).toInt();
         if (motor_id >= 4) {
           Serial.println("ERROR: Motor ID must be 0-3");
           return;
         }
-        
         Serial.print("ENCODER");
         Serial.print(motor_id);
         Serial.print(": ");
@@ -221,19 +197,15 @@ void processCommand(String command) {
     }
     
     case 'R': {
-      // Reset encoder
       if (command.length() == 2 && command.charAt(1) == 'A') {
-        // Reset all encoders
         resetAllEncoders();
         Serial.println("OK: All encoders reset");
-      } 
-      else {
+      } else {
         uint8_t motor_id = command.substring(1).toInt();
         if (motor_id >= 4) {
           Serial.println("ERROR: Motor ID must be 0-3");
           return;
         }
-        
         resetEncoder(motor_id);
         Serial.print("OK: Encoder ");
         Serial.print(motor_id);
@@ -243,14 +215,12 @@ void processCommand(String command) {
     }
     
     case 'S': {
-      // Stop all motors
       stopAllMotors();
       Serial.println("OK: All motors stopped");
       break;
     }
     
     case '?': {
-      // Get status
       Serial.println("STATUS:");
       for (uint8_t i = 0; i < 4; i++) {
         Serial.print("  Motor ");
@@ -274,14 +244,12 @@ void processCommand(String command) {
 void handleSerial() {
   while (Serial.available()) {
     char c = Serial.read();
-    
     if (c == '\n' || c == '\r') {
       if (inputBuffer.length() > 0) {
         processCommand(inputBuffer);
         inputBuffer = "";
       }
-    } 
-    else {
+    } else {
       inputBuffer += c;
     }
   }
@@ -292,16 +260,13 @@ void handleSerial() {
 // ============================================================================
 
 void setup() {
-  // Initialize debug serial (USB)
   Serial.begin(115200);
-    
-  // Wait for serial to initialize
   delay(1000);
   
   Serial.println("Pico 2 W Motor Controller Starting...");
   Serial.println("Pico 2 W Motor Controller v1.0");
   
-  // Initialize motor control pins
+  // Initialize motor direction and PWM pins
   for (uint8_t i = 0; i < 4; i++) {
     pinMode(motors[i].in1_pin, OUTPUT);
     pinMode(motors[i].in2_pin, OUTPUT);
@@ -309,17 +274,13 @@ void setup() {
     digitalWrite(motors[i].in2_pin, LOW);
   }
   
-  // Initialize encoder pins and interrupts
-  pinMode(MOTOR1_ENC_A, INPUT_PULLUP);
-  pinMode(MOTOR1_ENC_B, INPUT_PULLUP);
-  pinMode(MOTOR2_ENC_A, INPUT_PULLUP);
-  pinMode(MOTOR2_ENC_B, INPUT_PULLUP);
-  pinMode(MOTOR3_ENC_A, INPUT_PULLUP);
-  pinMode(MOTOR3_ENC_B, INPUT_PULLUP);
-  pinMode(MOTOR4_ENC_A, INPUT_PULLUP);
-  pinMode(MOTOR4_ENC_B, INPUT_PULLUP);
+  // Initialize encoder pins
+  pinMode(MOTOR1_ENC_A, INPUT_PULLUP); pinMode(MOTOR1_ENC_B, INPUT_PULLUP);
+  pinMode(MOTOR2_ENC_A, INPUT_PULLUP); pinMode(MOTOR2_ENC_B, INPUT_PULLUP);
+  pinMode(MOTOR3_ENC_A, INPUT_PULLUP); pinMode(MOTOR3_ENC_B, INPUT_PULLUP);
+  pinMode(MOTOR4_ENC_A, INPUT_PULLUP); pinMode(MOTOR4_ENC_B, INPUT_PULLUP);
   
-  // Attach interrupts for encoders (both channels for better resolution)
+  // Attach encoder interrupts
   attachInterrupt(digitalPinToInterrupt(MOTOR1_ENC_A), encoderISR_Motor1, CHANGE);
   attachInterrupt(digitalPinToInterrupt(MOTOR1_ENC_B), encoderISR_Motor1, CHANGE);
   attachInterrupt(digitalPinToInterrupt(MOTOR2_ENC_A), encoderISR_Motor2, CHANGE);
@@ -330,7 +291,6 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(MOTOR4_ENC_B), encoderISR_Motor4, CHANGE);
   
   Serial.println("Initialization complete!");
-  Serial.println("Listening for commands on UART1...");
   Serial.println("READY");
 }
 
@@ -340,7 +300,5 @@ void setup() {
 
 void loop() {
   handleSerial();
-  
-  // Small delay to prevent overwhelming the serial buffer
   delay(1);
 }
