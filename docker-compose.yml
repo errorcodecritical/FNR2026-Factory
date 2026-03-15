@@ -73,6 +73,7 @@ services:
       - launch 
       - mecanum_driver 
       - mecanum_driver.launch.py
+      - params_file:=/shared/mecanum_params.yaml
 
   teleop:
     build:
@@ -91,10 +92,12 @@ services:
     tty: true
     command:
       - ros2 
-      - launch 
-      - teleop_twist_joy 
-      - teleop-launch.py 
-      - joy_config:='xbox'
+      - run 
+      - teleop_twist_keyboard 
+      - teleop_twist_keyboard
+      # - teleop_twist_joy 
+      # - teleop-launch.py 
+      # - joy_config:='xbox'
       - params_file:='/shared/teleop_params.yaml'
 
   # robot_state_publisher - publishes TF from URDF

@@ -1,0 +1,105 @@
+# mecanum_driver_params.yaml
+# --------------------------
+# ROS 2 parameter file covering both nodes launched by mecanum_driver.launch.py:
+#
+#   motor_driver    – serial bridge to the Arduino motor controller
+#   mecanum_driver  – kinematics, PI velocity control, and odometry
+#
+# Load with:
+#   ros2 launch mecanum_driver mecanum_driver.launch.py \
+#       --ros-args --params-file mecanum_driver_params.yaml
+# or inside a launch file:
+#   Node(parameters=['/path/to/mecanum_driver_params.yaml'])
+
+# =============================================================================
+# motor_driver node  –  serial bridge to the Arduino
+# =============================================================================
+motor_driver:
+  ros__parameters:
+
+    # Serial device that enumerates when the Arduino is plugged in.
+    # Check with:  ls /dev/ttyACM* /dev/ttyUSB*
+    serial_port:  "/dev/ttyACM0"   # common for Arduino Uno/Mega via USB
+
+    # Must match the value set in the Arduino firmware.
+    baud_rate:  115200
+
+    # Serial read timeout.  If no byte arrives within this window the driver
+    # logs a warning.  Increase if the Arduino is slow to respond.
+    cmd_timeout:  1.0              # [s]
+
+    # Arduino resets on USB connect; this delay lets the bootloader finish
+    # before the driver sends any commands.
+    reconnect_delay:  2.0          # [s]
+
+    # How often to request encoder counts from the Arduino.
+    # Should be >= control_rate (mecanum_driver) so the PI loop always has
+    # a fresh measurement.
+    encoder_poll_rate:  50.0       # [Hz]
+
+
+# =============================================================================
+# mecanum_driver node  –  kinematics, PI velocity control, and odometry
+# =============================================================================
+mecanum_driver:
+  ros__parameters:
+
+    # -------------------------------------------------------------------------
+    # Robot geometry
+    # -------------------------------------------------------------------------
+    wheel_radius:        0.0325   # [m]  wheel radius (Ø65 mm)
+    wheel_separation_x:  0.160    # [m]  half track-width  (left-right centre distance / 2)
+    wheel_separation_y:  0.140    # [m]  half wheelbase    (front-rear  centre distance / 2)
+
+    # Maximum wheel angular speed — the physical speed that corresponds to
+    # PWM ±255.  Measure this empirically: command PWM=255 on a free-running
+    # wheel and record the rad/s from the encoder.
+    max_motor_speed:     10.0     # [rad/s]
+
+    # Encoder pulses per full wheel revolution = motor PPR × gear ratio
+    #   11 pulses/motor-rev  ×  21.3 reduction  =  234.3 pulses/wheel-rev
+    encoder_ppr:         2343.0
+
+    # -------------------------------------------------------------------------
+    # TF / frame IDs
+    # -------------------------------------------------------------------------
+    odom_frame_id:  "odom"
+    base_frame_id:  "base_link"
+    publish_tf:     true
+
+    # -------------------------------------------------------------------------
+    # Loop rates
+    # -------------------------------------------------------------------------
+    control_rate:  50.0    # [Hz]  PI control loop  — keep >= 2× odom_rate
+    odom_rate:     20.0    # [Hz]  odometry publish rate
+
+    # -------------------------------------------------------------------------
+    # Per-wheel PI velocity controller
+    # -------------------------------------------------------------------------
+    # The control output is:
+    #
+    #   PWM = clamp( feedforward + Kp*e + Ki*integral(e), -255, 255 )
+    #
+    # where  e = ω_setpoint − ω_measured  [rad/s]
+    #
+    # Units
+    #   pid_kp  :  PWM / (rad/s)  — how much PWM to add per rad/s of error
+    #   pid_ki  :  PWM / rad      — how much PWM to add per accumulated rad of error
+    #   pid_i_clamp : PWM         — maximum absolute value the integrator term
+    #                               may contribute (anti-windup)
+    #
+    # Tuning recipe (start with Ki = 0):
+    #   1. Set pid_kp = 0, pid_ki = 0.  Verify feedforward drives the robot
+    #      roughly at the commanded speed.
+    #   2. Raise pid_kp until speed tracks well without oscillation.
+    #      Typical starting range: 10 – 30.
+    #   3. Add pid_ki to eliminate steady-state error under load.
+    #      Typical starting range: 20 – 60.
+    #   4. If the robot jerks at the start of a move, lower pid_i_clamp.
+    #
+    # Gains can be updated live (no restart needed):
+    #   ros2 param set /mecanum_driver pid_kp 25.0
+    # -------------------------------------------------------------------------
+    pid_kp:      10.0    # proportional gain
+    pid_ki:      00.0    # integral gain
+    pid_i_clamp: 80.0    # integrator anti-windup clamp  [PWM units]

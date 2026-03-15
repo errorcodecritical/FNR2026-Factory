@@ -20,6 +20,7 @@ RUN apt update --fix-missing && apt install -y \
     ros-${ROS_DISTRO}-robot-state-publisher \
     ros-${ROS_DISTRO}-joint-state-publisher-gui \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rqt-plot \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
