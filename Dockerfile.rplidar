@@ -5,11 +5,18 @@ FROM ros:jazzy-ros-base
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=jazzy
 
+# Set RMW to CycloneDDS for better network performance
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
 # Install RPLidar ROS2 package and dependencies
 RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-rplidar-ros \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy CycloneDDS config for remote discovery
+COPY cyclonedds.xml /cyclonedds.xml
+ENV CYCLONEDDS_URI=file:///cyclonedds.xml
 
 WORKDIR /docker_ws/src
 WORKDIR /docker_ws

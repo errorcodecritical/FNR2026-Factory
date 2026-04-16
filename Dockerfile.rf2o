@@ -5,6 +5,9 @@ FROM ros:jazzy-ros-base
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=jazzy
 
+# Set RMW to CycloneDDS for better network performance
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
 # Install build tools and dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -34,6 +37,10 @@ WORKDIR /docker_ws/src
 COPY ./packages/rf2o_laser_odometry /docker_ws/src/rf2o_laser_odometry
 # RUN cd /root/rf2o_ws/src && \
 #     git clone https://github.com/MAPIRlab/rf2o_laser_odometry.git
+
+# Copy CycloneDDS config for remote discovery
+COPY cyclonedds.xml /cyclonedds.xml
+ENV CYCLONEDDS_URI=file:///cyclonedds.xml
 
 WORKDIR /docker_ws/
 

@@ -6,6 +6,9 @@ ENV ROS_DISTRO=jazzy
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
+# Set RMW to CycloneDDS for better network performance
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     python3-pip \
@@ -23,6 +26,10 @@ WORKDIR /docker_ws/src
 
 # Copy source code
 COPY ./packages/mecanum_driver ./mecanum_driver
+
+# Copy CycloneDDS config for remote discovery
+COPY cyclonedds.xml /cyclonedds.xml
+ENV CYCLONEDDS_URI=file:///cyclonedds.xml
 
 # Install Python dependencies in venv
 RUN pip install --no-cache-dir pyserial

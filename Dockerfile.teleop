@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy CycloneDDS config for remote discovery
+COPY cyclonedds.xml /cyclonedds.xml
+ENV CYCLONEDDS_URI=file:///cyclonedds.xml
+
 WORKDIR /docker_ws/src
 WORKDIR /docker_ws
 

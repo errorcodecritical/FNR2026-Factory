@@ -5,6 +5,9 @@ FROM ros:jazzy-ros-base
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=jazzy
 
+# Set RMW to CycloneDDS for better network performance
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
 RUN apt update --fix-missing && apt install -y \
     build-essential \
     cmake \
@@ -27,6 +30,10 @@ RUN apt update --fix-missing && apt install -y \
 WORKDIR /docker_ws/src/
 
 COPY ./packages/robot_description ./robot_description
+
+# Copy CycloneDDS config for remote discovery
+COPY cyclonedds.xml /cyclonedds.xml
+ENV CYCLONEDDS_URI=file:///cyclonedds.xml
 
 WORKDIR /docker_ws
 
