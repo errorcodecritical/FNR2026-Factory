@@ -16,11 +16,13 @@ services:
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
     volumes:
+      - ./shared:/shared
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
       - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     stdin_open: true
     tty: true
     command: >
@@ -44,9 +46,12 @@ services:
     network_mode: host
     devices:
       - /dev/ttyACM0:/dev/ttyACM0
+    volumes:
+      - ./shared:/shared
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     command: >
       bash -c "
       source /opt/ros/jazzy/setup.bash &&
@@ -68,6 +73,7 @@ services:
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     command:
       - ros2 
       - launch 
@@ -88,6 +94,7 @@ services:
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     stdin_open: true
     tty: true
     command:
@@ -119,6 +126,7 @@ services:
       - QT_X11_NO_MITSHM=1
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     command:
       - ros2
       - launch
@@ -138,10 +146,12 @@ services:
     privileged: true
     network_mode: host
     volumes:
+      - ./shared:/shared
       - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     command: >
       bash -c "
       source /opt/ros/jazzy/setup.bash &&
@@ -159,10 +169,12 @@ services:
     container_name: imu-filter
     network_mode: host
     volumes:
+      - ./shared:/shared
       - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     depends_on:
       - minimu9_publisher
     command: >
@@ -185,10 +197,12 @@ services:
     container_name: robot-localization-ekf
     network_mode: host
     volumes:
+      - ./shared:/shared
       - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     command: >
       bash -c "
         source /opt/ros/jazzy/setup.bash &&
@@ -213,6 +227,7 @@ services:
       - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
     stdin_open: true
     tty: true
     depends_on:

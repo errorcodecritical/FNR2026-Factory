@@ -1,25 +1,13 @@
-# Use ROS2 Jazzy base image
-FROM ros:jazzy-ros-base
+# Multi-stage build for rf2o - compile in builder, copy to runtime
+FROM fnr26factory-builder:latest as builder
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV ROS_DISTRO=jazzy
+# Install additional rf2o dependencies in builder
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
 
-# Set RMW to CycloneDDS for better network performance
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-
-# Install build tools and dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    git \
-    python3-pip \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libboost-all-dev \
     libeigen3-dev \
-    ros-${ROS_DISTRO}-ament-cmake \
-    ros-${ROS_DISTRO}-ament-cmake-python \
     ros-${ROS_DISTRO}-rclcpp \
-    ros-${ROS_DISTRO}-rclpy \
     ros-${ROS_DISTRO}-std-msgs \
     ros-${ROS_DISTRO}-geometry-msgs \
     ros-${ROS_DISTRO}-sensor-msgs \
@@ -27,30 +15,43 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-tf2 \
     ros-${ROS_DISTRO}-tf2-ros \
     ros-${ROS_DISTRO}-tf2-geometry-msgs \
-    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     && rm -rf /var/lib/apt/lists/*
 
-# Create ROS2 workspace
 WORKDIR /docker_ws/src
 
-# Clone rf2o_laser_odometry repository
+# Copy source code
 COPY ./packages/rf2o_laser_odometry /docker_ws/src/rf2o_laser_odometry
-# RUN cd /root/rf2o_ws/src && \
-#     git clone https://github.com/MAPIRlab/rf2o_laser_odometry.git
 
-# Copy CycloneDDS config for remote discovery
-COPY cyclonedds.xml /cyclonedds.xml
-ENV CYCLONEDDS_URI=file:///cyclonedds.xml
+WORKDIR /docker_ws
 
-WORKDIR /docker_ws/
-
-# Build the workspace with verbose output
+# Build the workspace
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
-    colcon build --symlink-install --event-handlers console_direct+
+    colcon build --symlink-install
 
-# Setup entrypoint
-COPY ./ros_entrypoint.sh /
-RUN chmod +x /ros_entrypoint.sh
-ENTRYPOINT ["/ros_entrypoint.sh"]
+# Final runtime stage - minimal size
+FROM fnr26factory-base:latest
+
+# Install only runtime dependencies (not build tools)
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libboost-system1.83.0 \
+    libeigen3-dev \
+    ros-${ROS_DISTRO}-rclcpp \
+    ros-${ROS_DISTRO}-std-msgs \
+    ros-${ROS_DISTRO}-geometry-msgs \
+    ros-${ROS_DISTRO}-sensor-msgs \
+    ros-${ROS_DISTRO}-nav-msgs \
+    ros-${ROS_DISTRO}-tf2 \
+    ros-${ROS_DISTRO}-tf2-ros \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only the built workspace from builder stage
+COPY --from=builder /docker_ws/install /docker_ws/install
+
+WORKDIR /docker_ws
+
+# Setup paths
+ENV PYTHONPATH="/docker_ws/install/lib/python3.11/site-packages:${PYTHONPATH}"
 
 CMD ["bash"]

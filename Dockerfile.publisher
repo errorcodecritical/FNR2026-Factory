@@ -1,39 +1,19 @@
 #STATE PUBLISHER
-FROM ros:jazzy-ros-base
+FROM fnr26factory-base:latest
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV ROS_DISTRO=jazzy
+# Install only necessary dependencies for robot description
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
 
-# Set RMW to CycloneDDS for better network performance
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-
-RUN apt update --fix-missing && apt install -y \
-    build-essential \
-    cmake \
-    git \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-colcon-common-extensions \
-    python3-pip \
-    python3-rosdep \
-    python3-rosinstall-generator \
-    python3-vcstool \
     ros-${ROS_DISTRO}-xacro \
-    ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-joint-state-publisher \
     ros-${ROS_DISTRO}-robot-state-publisher \
-    ros-${ROS_DISTRO}-joint-state-publisher-gui \
-    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
-    ros-${ROS_DISTRO}-rqt-plot \
-    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /docker_ws/src/
 
 COPY ./packages/robot_description ./robot_description
-
-# Copy CycloneDDS config for remote discovery
-COPY cyclonedds.xml /cyclonedds.xml
-ENV CYCLONEDDS_URI=file:///cyclonedds.xml
 
 WORKDIR /docker_ws
 
@@ -41,9 +21,4 @@ WORKDIR /docker_ws
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     colcon build --symlink-install
 
-# Setup entrypoint
-COPY ./ros_entrypoint.sh /
-RUN chmod +x /ros_entrypoint.sh
-ENTRYPOINT ["/ros_entrypoint.sh"]
-
-CMD [ "ros2", "launch", "robot_description", "robot_state_publisher.launch.py" ]
+CMD ["ros2", "launch", "robot_description", "robot_state_publisher.launch.py"]

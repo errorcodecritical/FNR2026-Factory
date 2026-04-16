@@ -1,0 +1,21 @@
+FROM ros:jazzy-ros-base
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    ROS_DISTRO=jazzy \
+    RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+# Install common ROS2 dependencies (once for all images)
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Setup entrypoint
+COPY ./ros_entrypoint.sh /ros_entrypoint.sh
+RUN chmod +x /ros_entrypoint.sh
+ENTRYPOINT ["/ros_entrypoint.sh"]
+
+WORKDIR /docker_ws

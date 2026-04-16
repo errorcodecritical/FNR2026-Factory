@@ -5,11 +5,11 @@
     <xacro:property name="mesh_prefix" value="package://robot_description/meshes" />
 
     <!-- Wheel properties -->
-    <xacro:property name="wheel_radius" value="0.03" />
-    <xacro:property name="wheel_width" value="0.02" />
-    <xacro:property name="wheel_x_offset" value="0.06" />
+    <xacro:property name="wheel_radius" value="0.033" />
+    <xacro:property name="wheel_width" value="0.03" />
+    <xacro:property name="wheel_x_offset" value="0.055" />
     <xacro:property name="wheel_y_offset" value="0.105" />
-    <xacro:property name="wheel_z_offset" value="-0.05" />
+    <xacro:property name="wheel_z_offset" value="-0.0784" />
 
     <!-- ===================== LINKS ===================== -->
 
@@ -32,7 +32,7 @@
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
-                <box size="0.02 0.02 0.01" />
+                <box size="0.03 0.03 0.01" />
             </geometry>
         </visual>
     </link>
@@ -42,7 +42,7 @@
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
-                <cylinder radius="0.038" length="0.04" />
+                <cylinder radius="0.035" length="0.02368" />
             </geometry>
         </visual>
     </link>
@@ -97,14 +97,14 @@
     <joint name="base_link_to_imu" type="fixed">
         <parent link="base_link" />
         <child link="imu_link" />
-        <origin xyz="0.0 0.0 0.05" rpy="0 0 0" />
+        <origin xyz="-0.044 0.006 -0.0575" rpy="0 0 0" />
     </joint>
 
     <!-- RPLIDAR JOINT -->
     <joint name="base_link_to_lidar" type="fixed">
         <parent link="base_link" />
         <child link="lidar_link" />
-        <origin xyz="0.0 0.0 0.12" rpy="0 0 0" />
+        <origin xyz="0.0 0.0 0.0" rpy="0 0 0" />
     </joint>
 
     <!-- WHEEL JOINTS (continuous for driven wheels) -->

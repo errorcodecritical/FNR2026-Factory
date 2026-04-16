@@ -1,27 +1,17 @@
-FROM ros:jazzy-ros-base
+FROM fnr26factory-base:latest
 
-RUN apt-get update && apt-get install -y \
-    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+# Install only necessary localization packages
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-robot-localization \
     ros-${ROS_DISTRO}-imu-filter-madgwick \
     && rm -rf /var/lib/apt/lists/*
-
-# Set RMW to CycloneDDS for better network performance
-ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-
-# Copy CycloneDDS config for remote discovery
-COPY cyclonedds.xml /cyclonedds.xml
-ENV CYCLONEDDS_URI=file:///cyclonedds.xml
 
 WORKDIR /docker_ws/src
 WORKDIR /docker_ws
 
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     colcon build --symlink-install
-
-# Setup entrypoint
-COPY ./ros_entrypoint.sh /
-RUN chmod +x /ros_entrypoint.sh
-ENTRYPOINT ["/ros_entrypoint.sh"]
 
 CMD ["bash"]
