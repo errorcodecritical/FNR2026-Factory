@@ -3,7 +3,7 @@
     <Domain id="any">
         <General>
             <Interfaces>
-                <NetworkInterface name="wlo1" multicast="true" priority="default"/>
+                <NetworkInterface name="wlan0" multicast="true" priority="default"/>
             </Interfaces>
             <AllowMulticast>true</AllowMulticast>
         </General>

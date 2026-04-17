@@ -1,8 +1,26 @@
 teleop_twist_joy_node:
   ros__parameters:
-    axis_linear.x: 1         # Left stick vertical
-    axis_linear.y: 0         # Left stick horizontal (Strafing)
-    axis_angular.yaw: 3      # Right stick horizontal (Rotation)
-    scale_linear.y: 0.5      # Speed for sideways movement
-    scale_linear.x: 0.5
-    scale_angular.yaw: 1.0
+    # --- Axes ---
+    axis_linear:
+      x: 1              # Left stick vertical   (forward/back)
+      y: 0              # Left stick horizontal (strafe left/right)
+    axis_angular:
+      yaw: 3            # Right stick horizontal (rotate)
+
+    # --- Normal speed scales ---
+    scale_linear:
+      x: 1.0            # m/s forward/back
+      y: 1.0            # m/s strafe
+    scale_angular:
+      yaw: 3.0          # rad/s rotation
+
+    # --- Turbo speed scales (hold RB / button 5) ---
+    scale_linear_turbo:
+      x: 1.0
+      y: 1.0
+    scale_angular_turbo:
+      yaw: 2.0
+
+    # --- Buttons ---
+    enable_button: 4          # LB  - deadman switch (hold to move)
+    enable_turbo_button: 5    # RB  - hold for turbo speed

@@ -99,13 +99,14 @@ services:
     tty: true
     command:
       - ros2 
-      - run 
-      - teleop_twist_keyboard 
-      - teleop_twist_keyboard
-      # - teleop_twist_joy 
-      # - teleop-launch.py 
-      # - joy_config:='xbox'
-      - params_file:='/shared/teleop_params.yaml'
+      # - run
+      - launch
+      # - teleop_twist_keyboard 
+      # - teleop_twist_keyboard
+      - teleop_twist_joy
+      - teleop-launch.py
+      # - joy_config:=ps3-holonomic
+      - config_filepath:=/shared/teleop_params.yaml
 
   # robot_state_publisher - publishes TF from URDF
   publisher:
