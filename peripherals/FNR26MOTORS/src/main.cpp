@@ -166,7 +166,7 @@ void processCommand(String command) {
         Serial.println("ERROR: Motor ID must be 0-3");
         return;
       }
-      setMotorSpeed(motor_id, speed);
+      setMotorSpeed(motor_id, -speed); // Invert speed to match expected direction
       Serial.print("OK: Motor ");
       Serial.print(motor_id);
       Serial.print(" set to ");
@@ -179,7 +179,7 @@ void processCommand(String command) {
         Serial.print("ENCODERS:");
         for (uint8_t i = 0; i < 4; i++) {
           Serial.print(" ");
-          Serial.print(getEncoderCount(i));
+          Serial.print(-getEncoderCount(i)); // Invert count to match expected direction
         }
         Serial.println();
       } else {
@@ -191,7 +191,7 @@ void processCommand(String command) {
         Serial.print("ENCODER");
         Serial.print(motor_id);
         Serial.print(": ");
-        Serial.println(getEncoderCount(motor_id));
+        Serial.println(-getEncoderCount(motor_id)); // Invert count to match expected direction
       }
       break;
     }
