@@ -1,0 +1,20 @@
+# /etc/udev/rules.d/99-usb-serial.rules
+# Persistent USB serial device bindings
+# Arduino Micro  → /dev/ttyACM_ARDUINO
+# Raspberry Pi Pico 2  → /dev/ttyACM_PICO
+# CP210x UART Bridge   → /dev/ttyUSB_CP210X
+
+# Arduino SA Arduino Micro (2341:8037)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2341", ATTRS{idProduct}=="8037", \
+    SYMLINK+="ttyACM_ARDUINO", MODE="0666", \
+    TAG+="uaccess"
+
+# Raspberry Pi Pico 2 (2e8a:000f)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000f", \
+    SYMLINK+="ttyACM_PICO", MODE="0666", \
+    TAG+="uaccess"
+
+# Silicon Labs CP210x UART Bridge (10c4:ea60)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", \
+    SYMLINK+="ttyUSB_CP210X", MODE="0666", \
+    TAG+="uaccess"
