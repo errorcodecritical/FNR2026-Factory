@@ -15,7 +15,7 @@ class MinIMU9Node(Node):
         super().__init__('minimu9_node')
         
         # Declare parameters
-        self.declare_parameter('serial_port', '/dev/ttyACM0')
+        self.declare_parameter('serial_port', '/dev/ttyACM_PICO')
         self.declare_parameter('baud_rate', 115200)
         self.declare_parameter('frame_id', 'imu_link')
         self.declare_parameter('publish_rate', 50.0)

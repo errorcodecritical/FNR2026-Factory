@@ -33,7 +33,7 @@ Publications
 
 Parameters
 ----------
-  serial_port          [str]   '/dev/ttyACM0'   – USB device path
+  serial_port          [str]   '/dev/ttyACM_ARDUINO'  – persistent udev symlink for Arduino Micro
   baud_rate            [int]   115200
   encoder_poll_rate    [float] 10.0  Hz         – how often encoders are polled
   cmd_timeout          [float] 0.2   s           – serial read timeout per line
@@ -116,8 +116,8 @@ class MotorDriverNode(Node):
         def _d(desc, ptype=ParameterType.PARAMETER_NOT_SET):
             return ParameterDescriptor(description=desc)
 
-        self.declare_parameter('serial_port',       '/dev/ttyACM0',
-                               _d('USB serial device path, e.g. /dev/ttyACM0 or /dev/ttyUSB0'))
+        self.declare_parameter('serial_port',       '/dev/ttyACM_ARDUINO',
+                               _d('Persistent udev symlink for motor controller. See /etc/udev/rules.d/99-usb-serial.rules'))
         self.declare_parameter('baud_rate',          115200,
                                _d('Serial baud rate'))
         self.declare_parameter('cmd_timeout',        0.2,

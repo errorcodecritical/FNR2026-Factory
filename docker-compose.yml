@@ -14,7 +14,7 @@ services:
     privileged: true
     network_mode: host
     devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/ttyUSB_CP210X:/dev/ttyUSB_CP210X
     volumes:
       - ./shared:/shared
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
@@ -30,7 +30,7 @@ services:
       source /opt/ros/jazzy/setup.bash &&
       ros2 run rplidar_ros rplidar_composition --ros-args \
       --remap __node:=rplidar_node \
-      -p rplidar_node:serial_port:="/dev/ttyUSB0" \
+      -p rplidar_node:serial_port:="/dev/ttyUSB_CP210X" \
       -p rplidar_node:serial_baudrate:=115200 \
       -p rplidar_node:frame_id:="lidar_link" \
       -p rplidar_node:inverted:=false \
@@ -45,7 +45,7 @@ services:
     privileged: true
     network_mode: host
     devices:
-      - /dev/ttyACM0:/dev/ttyACM0
+      - /dev/ttyACM_PICO:/dev/ttyACM_PICO
     volumes:
       - ./shared:/shared
     environment:
@@ -67,7 +67,7 @@ services:
     privileged: true
     network_mode: host
     devices:
-      - /dev/ttyACM0:/dev/ttyACM0
+      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
     volumes:
      - ./shared:/shared
     environment:

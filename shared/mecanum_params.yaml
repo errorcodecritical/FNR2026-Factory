@@ -18,8 +18,9 @@ motor_driver:
   ros__parameters:
 
     # Serial device that enumerates when the Arduino is plugged in.
-    # Check with:  ls /dev/ttyACM* /dev/ttyUSB*
-    serial_port:  "/dev/ttyACM0"   # common for Arduino Uno/Mega via USB
+    # Uses persistent udev symlink: Arduino Micro → /dev/ttyACM_ARDUINO
+    # See /etc/udev/rules.d/99-usb-serial.rules for device mappings
+    serial_port:  "/dev/ttyACM_ARDUINO"   # persistent symlink for Arduino Micro
 
     # Must match the value set in the Arduino firmware.
     baud_rate:  115200
