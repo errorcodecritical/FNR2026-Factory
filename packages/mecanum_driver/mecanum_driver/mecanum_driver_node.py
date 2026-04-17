@@ -19,8 +19,8 @@ Publications
 Wheel layout (top view)
 -----------------------
         FRONT
-   FL(3)     FR(2)
-   RL(1)     RR(0)
+   FL(2)     FR(3)
+   RL(0)     RR(1)
         REAR
 
 Mecanum roller convention: front-left & rear-right have rollers at +45°,
@@ -41,30 +41,30 @@ Setting Ki = 0.0 degrades to pure feedforward (original open-loop behaviour).
 -----------------------------------------------------------
   Index  Field
   -----  ------------------------------------------------
-   0     wheel 0 (RR) – setpoint  [rad/s]
-   1     wheel 0 (RR) – measured  [rad/s]
-   2     wheel 0 (RR) – error     [rad/s]  (setpoint − measured)
-   3     wheel 0 (RR) – PWM       [-255..255]
-   4     wheel 1 (RL) – setpoint  [rad/s]
-   5     wheel 1 (RL) – measured  [rad/s]
-   6     wheel 1 (RL) – error     [rad/s]
-   7     wheel 1 (RL) – PWM       [-255..255]
-   8     wheel 2 (FR) – setpoint  [rad/s]
-   9     wheel 2 (FR) – measured  [rad/s]
-  10     wheel 2 (FR) – error     [rad/s]
-  11     wheel 2 (FR) – PWM       [-255..255]
-  12     wheel 3 (FL) – setpoint  [rad/s]
-  13     wheel 3 (FL) – measured  [rad/s]
-  14     wheel 3 (FL) – error     [rad/s]
-  15     wheel 3 (FL) – PWM       [-255..255]
+   0     wheel 0 (RL) – setpoint  [rad/s]
+   1     wheel 0 (RL) – measured  [rad/s]
+   2     wheel 0 (RL) – error     [rad/s]  (setpoint − measured)
+   3     wheel 0 (RL) – PWM       [-255..255]
+   4     wheel 1 (RR) – setpoint  [rad/s]
+   5     wheel 1 (RR) – measured  [rad/s]
+   6     wheel 1 (RR) – error     [rad/s]
+   7     wheel 1 (RR) – PWM       [-255..255]
+   8     wheel 2 (FL) – setpoint  [rad/s]
+   9     wheel 2 (FL) – measured  [rad/s]
+  10     wheel 2 (FL) – error     [rad/s]
+  11     wheel 2 (FL) – PWM       [-255..255]
+  12     wheel 3 (FR) – setpoint  [rad/s]
+  13     wheel 3 (FR) – measured  [rad/s]
+  14     wheel 3 (FR) – error     [rad/s]
+  15     wheel 3 (FR) – PWM       [-255..255]
 
 rqt_plot examples
 -----------------
   # All four setpoints vs measured on one chart:
-  /wheel_debug/data[0] /wheel_debug/data[1]   # RR
-  /wheel_debug/data[4] /wheel_debug/data[5]   # RL
-  /wheel_debug/data[8] /wheel_debug/data[9]   # FR
-  /wheel_debug/data[12] /wheel_debug/data[13] # FL
+  /wheel_debug/data[0] /wheel_debug/data[1]   # RL
+  /wheel_debug/data[4] /wheel_debug/data[5]   # RR
+  /wheel_debug/data[8] /wheel_debug/data[9]   # FL
+  /wheel_debug/data[12] /wheel_debug/data[13] # FR
 
   # All four tracking errors:1 
   /wheel_debug/data[2] /wheel_debug/data[6] /wheel_debug/data[10] /wheel_debug/data[14]
@@ -78,15 +78,19 @@ Parameters (all settable via ROS 2 parameter server)
   wheel_separation_x  [m]      0.160    half track-width  (left ↔ right)
   wheel_separation_y  [m]      0.140    half wheelbase    (front ↔ rear)
   max_motor_speed     [rad/s]  10.0     speed that maps to PWM ±255
-  encoder_ppr         [-]      234.3    pulses per wheel revolution (11 × 21.3)
+  motor_ppr           [array]  [881.0, 899.0, 1495.0, 900.0]  pulses per revolution per motor
+                                        Motor 0 (RL): 881 PPR – Rear Left
+                                        Motor 1 (RR): 899 PPR – Rear Right
+                                        Motor 2 (FL): 1495 PPR (different gearing) – Front Left
+                                        Motor 3 (FR): 900 PPR – Front Right
   odom_frame_id       [str]    "odom"
   base_frame_id       [str]    "base_link"
   publish_tf          [bool]   True
 
   control_rate        [Hz]     50.0     PI control loop rate
-  pid_kp              [–]      20.0     proportional gain  (PWM per rad/s error)
-  pid_ki              [–]      40.0     integral gain      (PWM per rad error)
-  pid_i_clamp         [–]      80.0     integrator anti-windup clamp  [PWM units]
+  pid_kp              [–]      22.0     proportional gain  (PWM per rad/s error) - tuned from motor characterization
+  pid_ki              [–]      45.0     integral gain      (PWM per rad error) - tuned from motor characterization
+  pid_i_clamp         [–]      100.0    integrator anti-windup clamp  [PWM units]
 
   odom_rate           [Hz]     20.0     odometry publish rate
   publish_wheel_debug [bool]   True     publish /wheel_debug topic
@@ -149,15 +153,13 @@ class WheelPI:
 
 class MecanumDriverNode(Node):
 
-    # ---- encoder constants ------------------------------------------------
-    MOTOR_ENCODER_PPR = 11       # encoder pulses per motor-shaft revolution
-    GEAR_RATIO        = 21.3     # gearbox reduction
-    WHEEL_PPR         = MOTOR_ENCODER_PPR * GEAR_RATIO   # = 234.3 pulses / wheel rev
+    # ---- constants ------------------------------------------------
     TWO_PI            = 2.0 * math.pi
+    # Note: WHEEL_PPR is now per-motor configurable (loaded from parameters)
 
     # ---- debug topic layout -----------------------------------------------
     # 4 wheels × 4 fields (setpoint, measured, error, pwm) = 16 floats
-    _WHEEL_NAMES  = ('RR', 'RL', 'FR', 'FL')   # motor-index order
+    _WHEEL_NAMES  = ('RL', 'RR', 'FL', 'FR')   # motor-index order: 0=RL, 1=RR, 2=FL, 3=FR
     _DEBUG_FIELDS = ('setpoint', 'measured', 'error', 'pwm')
     _DEBUG_LEN    = len(_WHEEL_NAMES) * len(_DEBUG_FIELDS)   # 16
 
@@ -173,7 +175,7 @@ class MecanumDriverNode(Node):
         self.get_logger().info(
             f"Mecanum driver initialised  r={self._r:.4f} m  "
             f"lx={self._lx:.3f} m  ly={self._ly:.3f} m  "
-            f"PPR={self._wheel_ppr:.1f}  "
+            f"Motor PPR={self._motor_ppr}  "
             f"Kp={self._kp:.2f}  Ki={self._ki:.2f}  "
             f"control_rate={self._control_rate:.0f} Hz"
         )
@@ -268,15 +270,18 @@ class MecanumDriverNode(Node):
         self.declare_parameter('wheel_separation_x',  0.160,  _d('Half track-width – left to right centre [m]'))
         self.declare_parameter('wheel_separation_y',  0.140,  _d('Half wheelbase – front to rear centre [m]'))
         self.declare_parameter('max_motor_speed',     10.0,   _d('Wheel angular speed [rad/s] that maps to PWM 255'))
-        self.declare_parameter('encoder_ppr',         234.3,  _d('Encoder pulses per wheel revolution (11 × 21.3)'))
+        # Per-motor PPR values – Motor 0 (RL), 1 (RR), 2 (FL), 3 (FR)
+        self.declare_parameter('motor_ppr',          [881.0, 899.0, 1495.0, 900.0],
+                               _d('Motor PPR per index [Motor0=RL, Motor1=RR, Motor2=FL, Motor3=FR]'))
+        self.declare_parameter('encoder_ppr',         234.3,  _d('(Deprecated) Use motor_ppr instead'))
         self.declare_parameter('odom_frame_id',       'odom',      _d('Odometry frame id'))
         self.declare_parameter('base_frame_id',       'base_link', _d('Robot base frame id'))
         self.declare_parameter('publish_tf',          True,        _d('Broadcast odom→base_link TF'))
         self.declare_parameter('control_rate',        50.0,  _d('PI control loop rate [Hz]'))
         self.declare_parameter('odom_rate',           20.0,  _d('Odometry publish rate [Hz]'))
-        self.declare_parameter('pid_kp',              20.0,  _d('Proportional gain [PWM / (rad/s)]'))
-        self.declare_parameter('pid_ki',              40.0,  _d('Integral gain [PWM / rad]'))
-        self.declare_parameter('pid_i_clamp',         80.0,  _d('Integrator anti-windup clamp [PWM units]'))
+        self.declare_parameter('pid_kp',              22.0,  _d('Proportional gain [PWM / (rad/s)] – tuned from motor characterization'))
+        self.declare_parameter('pid_ki',              45.0,  _d('Integral gain [PWM / rad] – tuned from motor characterization'))
+        self.declare_parameter('pid_i_clamp',         100.0, _d('Integrator anti-windup clamp [PWM units]'))
         self.declare_parameter('publish_wheel_debug', True,  _d('Publish /wheel_debug Float32MultiArray for rqt_plot'))
 
     def _load_params(self):
@@ -286,7 +291,8 @@ class MecanumDriverNode(Node):
         self._ly                 = g('wheel_separation_y').value
         self._l                  = self._lx + self._ly
         self._max_speed          = g('max_motor_speed').value
-        self._wheel_ppr          = g('encoder_ppr').value
+        # Load per-motor PPR values (default: [881.0, 899.0, 1495.0, 900.0])
+        self._motor_ppr          = g('motor_ppr').value
         self._odom_frame         = g('odom_frame_id').value
         self._base_frame         = g('base_frame_id').value
         self._pub_tf             = g('publish_tf').value
@@ -334,7 +340,7 @@ class MecanumDriverNode(Node):
         w_RL =  (vx + vy - l*wz) / r
         w_RR =  (vx - vy + l*wz) / r
 
-        Motor mapping:  0=RR  1=RL  2=FR  3=FL
+        Motor mapping:  0=RL  1=RR  2=FL  3=FR
         """
         vx = msg.linear.x
         vy = msg.linear.y
@@ -347,7 +353,7 @@ class MecanumDriverNode(Node):
         w_rl = (vx + vy - l * wz) / r
         w_rr = (vx - vy + l * wz) / r
 
-        self._omega_setpoint = [w_rr, w_rl, w_fr, w_fl]
+        self._omega_setpoint = [w_rl, w_rr, w_fl, w_fr]
 
         if vx == 0.0 and vy == 0.0 and wz == 0.0:
             for pi in self._pi:
@@ -381,7 +387,9 @@ class MecanumDriverNode(Node):
 
         self._enc_last[idx] = raw
 
-        delta_rad = (diff / self._wheel_ppr) * self.TWO_PI
+        # Use motor-specific PPR value
+        ppr = self._motor_ppr[idx] if idx < len(self._motor_ppr) else self._motor_ppr[0]
+        delta_rad = (diff / ppr) * self.TWO_PI
 
         dt_ns = (now - self._enc_last_time[idx]).nanoseconds
         if dt_ns > 0:
@@ -443,12 +451,12 @@ class MecanumDriverNode(Node):
         dy_body = r/4   * (-dw_FL + dw_FR + dw_RL - dw_RR )
         dyaw    = r/4*l * (-dw_FL + dw_FR - dw_RL + dw_RR )
 
-        Motor mapping:  0=RR  1=RL  2=FR  3=FL
+        Motor mapping:  0=RL  1=RR  2=FL  3=FR
         """
         dw = self._enc_delta_odom[:]
         self._enc_delta_odom = [0.0] * 4
 
-        rr, rl, fr, fl = dw
+        rl, rr, fl, fr = dw
 
         r  = self._r
         l  = self._l

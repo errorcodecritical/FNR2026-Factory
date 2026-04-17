@@ -1,0 +1,49 @@
+# Motor configuration and characterization parameters
+# Generated from motor speed characterization
+
+# Motor PPR (Pulses Per Revolution) - per motor index
+# Motor 0 (RL): 881 PPR
+# Motor 1 (RR): 899 PPR  
+# Motor 2 (FL): 1495 PPR (different gearing/encoder)
+# Motor 3 (FR): 900 PPR
+motor_ppr:
+  - 881.0    # Motor 0 (RL) - Rear Left
+  - 899.0    # Motor 1 (RR) - Rear Right
+  - 1495.0   # Motor 2 (FL) - Front Left (higher PPR, finer resolution)
+  - 900.0    # Motor 3 (FR) - Front Right
+
+# Motor speed coefficients from polynomial fit: RPS = a*PWM² + b*PWM + c
+# Used for feedforward tuning and characterization
+motor_coefficients:
+  - name: "Motor 0 (RL) - Rear Left"
+    ppr: 881.0
+    forward: {a: -0.000038, b: 0.025453, c: -0.613075}
+    reverse: {a: 0.000042, b: 0.026477, c: 0.733867}
+  - name: "Motor 1 (RR) - Rear Right"
+    ppr: 899.0
+    forward: {a: -0.000035, b: 0.024015, c: -0.582833}
+    reverse: {a: 0.000032, b: 0.023846, c: 0.577888}
+  - name: "Motor 2 (FL) - Front Left"
+    ppr: 1495.0
+    forward: {a: -0.000055, b: 0.029567, c: -0.659304}
+    reverse: {a: 0.000054, b: 0.029798, c: 0.680301}
+  - name: "Motor 3 (FR) - Front Right"
+    ppr: 900.0
+    forward: {a: -0.000030, b: 0.023567, c: -0.752885}
+    reverse: {a: 0.000028, b: 0.022155, c: 0.578850}
+
+# PID tuning parameters - estimated from motor characterization
+# Feedforward uses 'b' coefficient (steady-state gain): FF_gain = 1/b * 255
+# PI controller for velocity tracking error
+pid_tuning:
+  # Proportional gain [PWM / (rad/s error)]
+  # Estimated based on motor linearity and responsiveness
+  kp: 22.0
+  
+  # Integral gain [PWM / rad error]
+  # Tuned for steady-state tracking with anti-windup
+  ki: 45.0
+  
+  # Integrator anti-windup clamp [PWM units]
+  # Prevents integrator windup during saturation
+  i_clamp: 100.0

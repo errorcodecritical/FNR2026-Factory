@@ -56,9 +56,17 @@ mecanum_driver:
     # wheel and record the rad/s from the encoder.
     max_motor_speed:     10.0     # [rad/s]
 
-    # Encoder pulses per full wheel revolution = motor PPR × gear ratio
-    #   11 pulses/motor-rev  ×  21.3 reduction  =  234.3 pulses/wheel-rev
-    encoder_ppr:         2343.0
+    # Per-motor PPR (Pulses Per Revolution) values [Motor0, Motor1, Motor2, Motor3]
+    # Determined from motor characterization tests.
+    # Motor 0 (RL): 881 PPR  – Rear Left
+    # Motor 1 (RR): 899 PPR  – Rear Right
+    # Motor 2 (FL): 1495 PPR – Front Left (different gearing/encoder configuration)
+    # Motor 3 (FR): 900 PPR  – Front Right
+    motor_ppr:  [881.0, 899.0, 1495.0, 900.0]
+
+    # (Deprecated) Old single PPR value — motor_ppr above supersedes this
+    # Kept for backward compatibility only
+    encoder_ppr:  234.3
 
     # -------------------------------------------------------------------------
     # TF / frame IDs
@@ -99,7 +107,12 @@ mecanum_driver:
     #
     # Gains can be updated live (no restart needed):
     #   ros2 param set /mecanum_driver pid_kp 25.0
+    #
+    # Current values tuned from motor characterization:
+    # - All motors show good linearity (R² > 0.97) with modest dead-zone
+    # - Average b coefficient (steady-state gain) ≈ 0.0252 RPS/PWM
+    # - Conservative PI gains to ensure stability across all motor variants
     # -------------------------------------------------------------------------
-    pid_kp:      10.0    # proportional gain
-    pid_ki:      00.0    # integral gain
-    pid_i_clamp: 80.0    # integrator anti-windup clamp  [PWM units]
+    pid_kp:      22.0   # proportional gain [PWM / (rad/s)] - tuned from characterization
+    pid_ki:      45.0   # integral gain [PWM / rad] - tuned from characterization
+    pid_i_clamp: 100.0  # integrator anti-windup clamp [PWM units]

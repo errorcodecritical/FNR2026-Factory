@@ -190,7 +190,7 @@ class MotorDriverNode(Node):
     # ======================================================================= #
 
     def _motor_cmd_cb(self, msg: Int16, motor_id: int):
-        speed = int(max(-255, min(255, msg.data)))
+        speed = int(max(-100, min(100, msg.data)))
         cmd = f"M{motor_id} {speed}\n".encode('utf-8')
         if self._write(cmd):
             self.get_logger().debug(f"Motor {motor_id} → PWM {speed}")
