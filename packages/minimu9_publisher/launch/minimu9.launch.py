@@ -8,7 +8,7 @@ def generate_launch_description():
     # Declare launch arguments
     serial_port_arg = DeclareLaunchArgument(
         'serial_port',
-        default_value='/dev/ttyACM_PICO',
+        default_value='/dev/ttyACM_ARDUINO',
         description='Serial port for MinIMU-9 v5'
     )
     

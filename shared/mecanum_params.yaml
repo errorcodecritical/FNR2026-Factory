@@ -2,7 +2,7 @@
 # --------------------------
 # ROS 2 parameter file covering both nodes launched by mecanum_driver.launch.py:
 #
-#   motor_driver    – serial bridge to the Arduino motor controller
+#   motor_driver    – serial bridge to the Pico motor controller
 #   mecanum_driver  – kinematics, PI velocity control, and odometry
 #
 # Load with:
@@ -12,28 +12,28 @@
 #   Node(parameters=['/path/to/mecanum_driver_params.yaml'])
 
 # =============================================================================
-# motor_driver node  –  serial bridge to the Arduino
+# motor_driver node  –  serial bridge to the Pico
 # =============================================================================
 motor_driver:
   ros__parameters:
 
-    # Serial device that enumerates when the Arduino is plugged in.
-    # Uses persistent udev symlink: Arduino Micro → /dev/ttyACM_ARDUINO
+    # Serial device that enumerates when the Pico is plugged in.
+    # Uses persistent udev symlink: Pico → /dev/ttyACM_PICO
     # See /etc/udev/rules.d/99-usb-serial.rules for device mappings
-    serial_port:  "/dev/ttyACM_ARDUINO"   # persistent symlink for Arduino Micro
+    serial_port:  "/dev/ttyACM_PICO"   # persistent symlink for Pico
 
-    # Must match the value set in the Arduino firmware.
+    # Must match the value set in the Pico firmware.
     baud_rate:  115200
 
     # Serial read timeout.  If no byte arrives within this window the driver
-    # logs a warning.  Increase if the Arduino is slow to respond.
+    # logs a warning.  Increase if the Pico is slow to respond.
     cmd_timeout:  1.0              # [s]
 
-    # Arduino resets on USB connect; this delay lets the bootloader finish
+    # Pico resets on USB connect; this delay lets the bootloader finish
     # before the driver sends any commands.
     reconnect_delay:  2.0          # [s]
 
-    # How often to request encoder counts from the Arduino.
+    # How often to request encoder counts from the Pico.
     # Should be >= control_rate (mecanum_driver) so the PI loop always has
     # a fresh measurement.
     encoder_poll_rate:  50.0       # [Hz]
