@@ -45,7 +45,7 @@ services:
     privileged: true
     network_mode: host
     devices:
-      - /dev/ttyACM_PICO:/dev/ttyACM_PICO
+      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
     volumes:
       - ./shared:/shared
     environment:
@@ -67,7 +67,7 @@ services:
     privileged: true
     network_mode: host
     devices:
-      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
+      - /dev/ttyACM_PICO:/dev/ttyACM_PICO
     volumes:
      - ./shared:/shared
     environment:
