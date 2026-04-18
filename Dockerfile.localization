@@ -8,10 +8,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-imu-filter-madgwick \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /docker_ws/src
 WORKDIR /docker_ws
-
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
-    colcon build --symlink-install
-
-CMD ["bash"]

@@ -1,7 +1,6 @@
-# Multi-stage build for rf2o - compile in builder, copy to runtime
-FROM fnr26factory-builder:latest as builder
+FROM fnr26factory-base:latest
 
-# Install additional rf2o dependencies in builder
+# Install rf2o-specific dependencies
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,41 +16,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-tf2-geometry-msgs \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /docker_ws/src
-
-# Copy source code
-COPY ./packages/rf2o_laser_odometry /docker_ws/src/rf2o_laser_odometry
-
 WORKDIR /docker_ws
 
-# Build the workspace
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
-    colcon build --symlink-install
-
-# Final runtime stage - minimal size
-FROM fnr26factory-base:latest
-
-# Install only runtime dependencies (not build tools)
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libboost-system1.83.0 \
-    libeigen3-dev \
-    ros-${ROS_DISTRO}-rclcpp \
-    ros-${ROS_DISTRO}-std-msgs \
-    ros-${ROS_DISTRO}-geometry-msgs \
-    ros-${ROS_DISTRO}-sensor-msgs \
-    ros-${ROS_DISTRO}-nav-msgs \
-    ros-${ROS_DISTRO}-tf2 \
-    ros-${ROS_DISTRO}-tf2-ros \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy only the built workspace from builder stage
-COPY --from=builder /docker_ws/install /docker_ws/install
-
-WORKDIR /docker_ws
-
-# Setup paths
-ENV PYTHONPATH="/docker_ws/install/lib/python3.11/site-packages:${PYTHONPATH}"
-
-CMD ["bash"]

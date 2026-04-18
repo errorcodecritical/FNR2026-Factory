@@ -1,33 +1,10 @@
 FROM fnr26factory-base:latest
 
-# Set environment variables
-ENV VIRTUAL_ENV=/opt/venv \
-    PATH="$VIRTUAL_ENV/bin:$PATH"
-
-# Install minimal runtime dependencies
+# Install mecanum-specific dependencies
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-pip \
-    python3-venv \
     python3-serial \
     && rm -rf /var/lib/apt/lists/*
 
-# Create and activate virtual environment
-RUN python3 -m venv $VIRTUAL_ENV
-
-WORKDIR /docker_ws/src
-
-# Copy source code
-COPY ./packages/mecanum_driver ./mecanum_driver
-
-# Install Python dependencies in venv
-RUN . /opt/venv/bin/activate && pip install --no-cache-dir pyserial
-
 WORKDIR /docker_ws
-
-# Build the workspace
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
-    colcon build --symlink-install
-
-CMD ["ros2", "launch", "mecanum_driver", "mecanum_driver.launch.py"]

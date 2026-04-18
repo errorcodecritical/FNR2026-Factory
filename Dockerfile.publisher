@@ -5,20 +5,9 @@ FROM fnr26factory-base:latest
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list.d/ubuntu.sources
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-colcon-common-extensions \
     ros-${ROS_DISTRO}-xacro \
     ros-${ROS_DISTRO}-joint-state-publisher \
     ros-${ROS_DISTRO}-robot-state-publisher \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /docker_ws/src/
-
-COPY ./packages/robot_description ./robot_description
-
 WORKDIR /docker_ws
-
-# Build the workspace
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
-    colcon build --symlink-install
-
-CMD ["ros2", "launch", "robot_description", "robot_state_publisher.launch.py"]

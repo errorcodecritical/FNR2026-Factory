@@ -2,7 +2,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot">
 
     <!-- Mesh path prefix -->
-    <xacro:property name="mesh_prefix" value="package://robot_description/meshes" />
+    <!-- <xacro:property name="mesh_prefix" value="package://robot_description/meshes" /> -->
 
     <!-- Wheel properties -->
     <xacro:property name="wheel_radius" value="0.033" />
@@ -19,12 +19,12 @@
 
     <!-- BASE LINK -->
     <link name="base_link">
-        <visual>
-            <origin xyz="0 0 0" rpy="0 0 0" />
+        <!-- <visual>
+            <origin xyz="0 -0.072 0" rpy="0 0 0" />
             <geometry>
                 <mesh filename="${mesh_prefix}/robot.obj" />
             </geometry>
-        </visual>
+        </visual> -->
     </link>
 
     <!-- IMU LINK -->

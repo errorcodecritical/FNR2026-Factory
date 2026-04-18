@@ -115,5 +115,5 @@ mecanum_driver:
     # - Conservative PI gains to ensure stability across all motor variants
     # -------------------------------------------------------------------------
     pid_kp:      22.0   # proportional gain [PWM / (rad/s)] - tuned from characterization
-    pid_ki:      45.0   # integral gain [PWM / rad] - tuned from characterization
+    pid_ki:      10.0   # integral gain [PWM / rad] - tuned from characterization
     pid_i_clamp: 100.0  # integrator anti-windup clamp [PWM units]

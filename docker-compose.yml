@@ -13,10 +13,11 @@ services:
     container_name: rplidar-ros2-jazzy
     privileged: true
     network_mode: host
-    devices:
-      - /dev/ttyUSB_CP210X:/dev/ttyUSB_CP210X
+    devices: []
     volumes:
+      - /dev/ttyUSB_CP210X:/dev/ttyUSB_CP210X
       - ./shared:/shared
+      - ./docker_ws:/docker_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
       - DISPLAY=${DISPLAY}
@@ -25,17 +26,11 @@ services:
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
     stdin_open: true
     tty: true
-    command: >
-      bash -c "
-      source /opt/ros/jazzy/setup.bash &&
-      ros2 run rplidar_ros rplidar_composition --ros-args \
-      --remap __node:=rplidar_node \
-      -p rplidar_node:serial_port:="/dev/ttyUSB_CP210X" \
-      -p rplidar_node:serial_baudrate:=115200 \
-      -p rplidar_node:frame_id:="lidar_link" \
-      -p rplidar_node:inverted:=false \
-      -p rplidar_node:angle_compensate:=true
-      "
+    command:
+      - rplidar_ros
+      - bash
+      - -c
+      - ros2 run rplidar_ros rplidar_composition --ros-args --remap __node:=rplidar_node -p rplidar_node:serial_port:="/dev/ttyUSB_CP210X" -p rplidar_node:serial_baudrate:=115200 -p rplidar_node:frame_id:="lidar_link" -p rplidar_node:inverted:=false -p rplidar_node:angle_compensate:=true
 
   minimu9_publisher:
     build:
@@ -44,20 +39,20 @@ services:
     container_name: minimu9-publisher
     privileged: true
     network_mode: host
-    devices:
-      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
+    devices: []
     volumes:
+      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
       - ./shared:/shared
+      - ./docker_ws:/docker_ws
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    command: >
-      bash -c "
-      source /opt/ros/jazzy/setup.bash &&
-      source /docker_ws/install/setup.bash &&
-      ros2 run minimu9_publisher minimu9_node
-      "
+    command:
+      - minimu9_publisher
+      - bash
+      - -c
+      - ros2 run minimu9_publisher minimu9_node
 
   mecanum_driver:
     build:
@@ -66,20 +61,20 @@ services:
     container_name: mecanum-driver
     privileged: true
     network_mode: host
-    devices:
-      - /dev/ttyACM_PICO:/dev/ttyACM_PICO
+    devices: []
     volumes:
-     - ./shared:/shared
+      - /dev/ttyACM_PICO:/dev/ttyACM_PICO
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
     command:
-      - ros2 
-      - launch 
-      - mecanum_driver 
-      - mecanum_driver.launch.py
-      - params_file:=/shared/mecanum_params.yaml
+      - mecanum_driver
+      - bash
+      - -c
+      - ros2 launch mecanum_driver mecanum_driver.launch.py params_file:=/shared/mecanum_params.yaml
 
   teleop:
     build:
@@ -89,8 +84,9 @@ services:
     privileged: true
     network_mode: host
     volumes:
-     - ./shared:/shared
-     - /dev/input:/dev/input:rw
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+      - /dev/input:/dev/input:rw
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
@@ -98,15 +94,10 @@ services:
     stdin_open: true
     tty: true
     command:
-      - ros2 
-      # - run
-      - launch
-      # - teleop_twist_keyboard 
-      # - teleop_twist_keyboard
       - teleop_twist_joy
-      - teleop-launch.py
-      # - joy_config:=ps3-holonomic
-      - config_filepath:=/shared/teleop_params.yaml
+      - bash
+      - -c
+      - ros2 launch teleop_twist_joy teleop-launch.py config_filepath:=/shared/teleop_params.yaml
 
   # robot_state_publisher - publishes TF from URDF
   publisher:
@@ -120,6 +111,7 @@ services:
     network_mode: host
     volumes:
       - ./shared:/shared
+      - ./docker_ws:/docker_ws
       - /tmp/.X11-unix:/tmp/.X11-unix
     environment:
       - PYTHONUNBUFFERED=1
@@ -129,10 +121,10 @@ services:
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
     command:
-      - ros2
-      - launch
       - robot_description
-      - view_robot.launch.py
+      - bash
+      - -c
+      - ros2 launch robot_description robot_state_publisher.launch.py
 
   # ─────────────────────────────────────────────
   # FIRST-ORDER CONSUMERS
@@ -148,19 +140,17 @@ services:
     network_mode: host
     volumes:
       - ./shared:/shared
+      - ./docker_ws:/docker_ws
       - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    command: >
-      bash -c "
-      source /opt/ros/jazzy/setup.bash &&
-      source /docker_ws/install/setup.bash &&
-      sleep 3 &&
-      ros2 run rf2o_laser_odometry rf2o_laser_odometry_node \
-      --ros-args --params-file /root/config/rf2o_params.yaml
-      "
+    command:
+      - rf2o_laser_odometry
+      - bash
+      - -c
+      - sleep 3 && ros2 run rf2o_laser_odometry rf2o_laser_odometry_node --ros-args --params-file /root/config/rf2o_params.yaml
 
   # IMU Filter - filters raw IMU data
   imu_filter:
@@ -171,6 +161,7 @@ services:
     network_mode: host
     volumes:
       - ./shared:/shared
+      - ./docker_ws:/docker_ws
       - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
@@ -178,13 +169,11 @@ services:
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
     depends_on:
       - minimu9_publisher
-    command: >
-      bash -c "
-        source /opt/ros/jazzy/setup.bash &&
-        sleep 3 &&
-        ros2 run imu_filter_madgwick imu_filter_madgwick_node
-          --ros-args --params-file /root/config/imu_filter_madgwick.yaml
-        "
+    command:
+      - imu_filter_madgwick
+      - bash
+      - -c
+      - sleep 3 && ros2 run imu_filter_madgwick imu_filter_madgwick_node --ros-args --params-file /root/config/imu_filter_madgwick.yaml
 
   # ─────────────────────────────────────────────
   # SECOND-ORDER CONSUMERS
@@ -199,18 +188,20 @@ services:
     network_mode: host
     volumes:
       - ./shared:/shared
+      - ./docker_ws:/docker_ws
       - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    command: >
-      bash -c "
-        source /opt/ros/jazzy/setup.bash &&
-        sleep 5 &&
-        ros2 run robot_localization ekf_node
-          --ros-args --params-file /root/config/ekf.yaml
-      "
+    depends_on:
+      - imu_filter
+      - rf2o_odometry
+    command:
+      - robot_localization
+      - bash
+      - -c
+      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /root/config/ekf.yaml
 
   # SLAM Toolbox for mapping
   slam_mapping:
@@ -223,6 +214,7 @@ services:
     volumes:
       - ./config:/root/nav2_ws/config
       - ./shared:/shared
+      - ./docker_ws:/docker_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
       - DISPLAY=${DISPLAY}
@@ -235,14 +227,11 @@ services:
       - rplidar
       - robot_localization
       - publisher
-    command: >
-      bash -c "
-        source /opt/ros/jazzy/setup.bash &&
-        sleep 5 &&
-        ros2 launch slam_toolbox online_async_launch.py
-          slam_params_file:=/root/nav2_ws/config/mapper_params_online_async.yaml
-          use_sim_time:=false
-        "
+    command:
+      - slam_toolbox
+      - bash
+      - -c
+      - sleep 5 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/root/nav2_ws/config/mapper_params_online_async.yaml use_sim_time:=false
 
   # # ─────────────────────────────────────────────
   # # VISUALIZATION
