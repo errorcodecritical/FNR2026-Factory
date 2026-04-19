@@ -75,7 +75,8 @@ mecanum_driver:
     odom_topic:     "/odom_wheel"
     odom_frame_id:  "odom_wheel"
     base_frame_id:  "base_link"
-    publish_tf:     true
+    publish_odom_tf:     true
+    publish_wheel_tf:    true
 
     # -------------------------------------------------------------------------
     # Loop rates

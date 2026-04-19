@@ -86,7 +86,8 @@ Parameters (all settable via ROS 2 parameter server)
   odom_topic          [str]    "odom_wheel"   topic name for odometry publication
   odom_frame_id       [str]    "odom_wheel"   frame_id written into the Odometry message header
   base_frame_id       [str]    "base_link"
-  publish_tf          [bool]   False    disabled by default — use robot_localization EKF instead
+  publish_odom_tf     [bool]   False    broadcast odom→base_link TF (disable when using EKF)
+  publish_wheel_tf    [bool]   False    broadcast base_link→wheel_* TFs for joint states
 
   control_rate        [Hz]     50.0     PI control loop rate
   pid_kp              [–]      22.0     proportional gain  (PWM per rad/s error)
@@ -202,7 +203,7 @@ class MecanumDriverNode(Node):
         # Odometry topic name is now driven by the 'odom_topic' parameter.
         self._odom_pub = self.create_publisher(Odometry, self._odom_topic, 10)
 
-        if self._pub_tf:
+        if self._pub_odom_tf or self._pub_wheel_tf:
             self._tf_broadcaster = TransformBroadcaster(self)
 
         if self._publish_wheel_debug:
@@ -269,9 +270,12 @@ class MecanumDriverNode(Node):
         self.declare_parameter('odom_topic',    'odom_wheel', _d('Odometry topic name'))
         self.declare_parameter('odom_frame_id', 'odom_wheel', _d('Odometry header frame_id'))
         self.declare_parameter('base_frame_id', 'base_link',  _d('Robot base frame id'))
-        # publish_tf defaults to False: the EKF (robot_localization) should be
-        # the single publisher of the authoritative odom→base_link transform.
-        self.declare_parameter('publish_tf',    False, _d('Broadcast odom→base_link TF (disable when using EKF)'))
+        # publish_odom_tf: broadcast the odom->base_link transform.
+        # Keep False when robot_localization EKF is the authoritative TF source.
+        self.declare_parameter('publish_odom_tf',  False, _d('Broadcast odom->base_link TF (disable when using EKF)'))
+        # publish_wheel_tf: broadcast base_link->wheel_* transforms.
+        # Needed when no joint_state_publisher / robot_state_publisher is running.
+        self.declare_parameter('publish_wheel_tf', False, _d('Broadcast base_link->wheel_* TFs'))
         self.declare_parameter('control_rate',        50.0,  _d('PI control loop rate [Hz]'))
         self.declare_parameter('odom_rate',           20.0,  _d('Odometry publish rate [Hz]'))
         self.declare_parameter('pid_kp',              22.0,  _d('Proportional gain [PWM / (rad/s)]'))
@@ -290,7 +294,8 @@ class MecanumDriverNode(Node):
         self._odom_topic          = g('odom_topic').value       # ← new
         self._odom_frame          = g('odom_frame_id').value
         self._base_frame          = g('base_frame_id').value
-        self._pub_tf              = g('publish_tf').value
+        self._pub_odom_tf         = g('publish_odom_tf').value
+        self._pub_wheel_tf        = g('publish_wheel_tf').value
         self._control_rate        = g('control_rate').value
         self._odom_rate           = g('odom_rate').value
         self._kp                  = g('pid_kp').value
@@ -464,7 +469,8 @@ class MecanumDriverNode(Node):
 
         self._odom_pub.publish(odom)
 
-        if self._pub_tf:
+        # --- odom -> base_link TF -------------------------------------------
+        if self._pub_odom_tf:
             tf = TransformStamped()
             tf.header.stamp            = now
             tf.header.frame_id         = self._odom_frame
@@ -475,6 +481,39 @@ class MecanumDriverNode(Node):
             tf.transform.rotation.z    = math.sin(half_yaw)
             tf.transform.rotation.w    = math.cos(half_yaw)
             self._tf_broadcaster.sendTransform(tf)
+
+        # --- base_link -> wheel_* TFs ---------------------------------------
+        # These are static-ish transforms that reflect each wheel's joint
+        # position relative to the base.  Useful when robot_state_publisher
+        # is not running (e.g. no URDF loaded).  The rotation about Y encodes
+        # accumulated wheel angle from odometry (visualisation only — not used
+        # for localisation).
+        if self._pub_wheel_tf:
+            wheel_joints = [
+                # (child_frame,          x,                    y,                     z)
+                ('wheel_rear_left',   -self._lx,  self._ly,  0.0),
+                ('wheel_rear_right',  -self._lx, -self._ly,  0.0),
+                ('wheel_front_left',   self._lx,  self._ly,  0.0),
+                ('wheel_front_right',  self._lx, -self._ly,  0.0),
+            ]
+            wheel_tfs = []
+            for i, (child, wx, wy, wz) in enumerate(wheel_joints):
+                # Accumulated angle for this wheel [rad] from odometry deltas.
+                # We reuse _enc_delta_odom *before* it was zeroed above (dw).
+                wheel_angle = dw[i] / self._r if self._r > 0 else 0.0
+                half_wa = wheel_angle / 2.0
+                wtf = TransformStamped()
+                wtf.header.stamp    = now
+                wtf.header.frame_id = self._base_frame
+                wtf.child_frame_id  = child
+                wtf.transform.translation.x = wx
+                wtf.transform.translation.y = wy
+                wtf.transform.translation.z = wz
+                # Rotation about Y axis (wheel spin)
+                wtf.transform.rotation.y = math.sin(half_wa)
+                wtf.transform.rotation.w = math.cos(half_wa)
+                wheel_tfs.append(wtf)
+            self._tf_broadcaster.sendTransform(wheel_tfs)
 
 
 # ---------------------------------------------------------------------------
