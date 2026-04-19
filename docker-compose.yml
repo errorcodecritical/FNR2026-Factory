@@ -182,7 +182,7 @@ services:
       - imu_filter_madgwick
       - bash
       - -c
-      - sleep 3 && ros2 run imu_filter_madgwick imu_filter_madgwick_node --ros-args --params-file /root/config/imu_filter_madgwick.yaml
+      - sleep 3 && ros2 run imu_filter_madgwick imu_filter_madgwick_node --ros-args --params-file /shared/imu_filter_madgwick.yaml
 
   # ─────────────────────────────────────────────
   # SECOND-ORDER CONSUMERS
@@ -210,7 +210,7 @@ services:
       - robot_localization
       - bash
       - -c
-      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /root/config/ekf.yaml
+      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
 
   # SLAM Toolbox for mapping
   slam_mapping:

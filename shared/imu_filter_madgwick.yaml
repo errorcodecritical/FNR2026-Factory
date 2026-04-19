@@ -1,0 +1,14 @@
+imu_filter_node:
+  ros__parameters:
+    use_mag: true
+    publish_tf: false           # EKF owns TF, not this filter
+    world_frame: enu            # or ned depending on your IMU convention
+    gain: 0.01                  # Madgwick beta — lower = smoother, slower convergence
+    zeta: 0.0
+    mag_bias_x: 0.0             # calibrate and fill these in
+    mag_bias_y: 0.0
+    mag_bias_z: 0.0
+    stateless: false
+    fixed_frame: odom
+    use_magnetic_field_msg: true  # expects sensor_msgs/MagneticField on /imu/mag
+    remove_gravity_vector: true
