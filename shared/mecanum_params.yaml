@@ -72,7 +72,7 @@ mecanum_driver:
     # -------------------------------------------------------------------------
     # TF / frame IDs
     # -------------------------------------------------------------------------
-    odom_frame_id:  "odom"
+    odom_frame_id:  "odom_mecanum"
     base_frame_id:  "base_link"
     publish_tf:     true
 

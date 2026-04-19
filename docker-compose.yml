@@ -6,6 +6,15 @@ services:
   # HARDWARE DRIVERS (no dependencies)
   # ─────────────────────────────────────────────
 
+  base:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+    container_name: fnr26factory-base
+    image: fnr26factory-base:latest
+    # Don't run, just build
+    command: "true"
+
   rplidar:
     build:
       context: .
@@ -150,7 +159,7 @@ services:
       - rf2o_laser_odometry
       - bash
       - -c
-      - sleep 3 && ros2 run rf2o_laser_odometry rf2o_laser_odometry_node --ros-args --params-file /root/config/rf2o_params.yaml
+      - sleep 3 && ros2 run rf2o_laser_odometry rf2o_laser_odometry_node --ros-args --params-file /shared/rf2o_params.yaml
 
   # IMU Filter - filters raw IMU data
   imu_filter:
