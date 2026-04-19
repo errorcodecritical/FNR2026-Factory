@@ -192,6 +192,10 @@ class MecanumDriverNode(Node):
         self._y   = 0.0
         self._yaw = 0.0
 
+        # Absolute accumulated wheel angle [rad] per wheel, for TF broadcast.
+        # Order matches motor index: 0=RL, 1=RR, 2=FL, 3=FR
+        self._wheel_angle = [0.0] * 4
+
         # ------------------------------------------------------------------ #
         # Publishers                                                           #
         # ------------------------------------------------------------------ #
@@ -257,8 +261,9 @@ class MecanumDriverNode(Node):
             return ParameterDescriptor(description=desc)
 
         self.declare_parameter('wheel_radius',        0.0325, _d('Wheel radius [m]'))
-        self.declare_parameter('wheel_separation_x',  0.160,  _d('Half track-width – left to right centre [m]'))
-        self.declare_parameter('wheel_separation_y',  0.140,  _d('Half wheelbase – front to rear centre [m]'))
+        self.declare_parameter('wheel_separation_x',  0.105,  _d('Half track-width – left to right centre [m] — URDF wheel_y_offset'))
+        self.declare_parameter('wheel_separation_y',  0.055,  _d('Half wheelbase – front to rear centre [m] — URDF wheel_x_offset'))
+        self.declare_parameter('wheel_z_offset',     -0.0784, _d('Wheel centre height relative to base_link [m] — URDF wheel_z_offset'))
         self.declare_parameter('max_motor_speed',     10.0,   _d('Wheel angular speed [rad/s] that maps to PWM 255'))
         self.declare_parameter('motor_ppr', [881.0, 899.0, 1495.0, 900.0],
                                _d('Motor PPR per index [Motor0=RL, Motor1=RR, Motor2=FL, Motor3=FR]'))
@@ -483,25 +488,29 @@ class MecanumDriverNode(Node):
             self._tf_broadcaster.sendTransform(tf)
 
         # --- base_link -> wheel_* TFs ---------------------------------------
-        # These are static-ish transforms that reflect each wheel's joint
-        # position relative to the base.  Useful when robot_state_publisher
-        # is not running (e.g. no URDF loaded).  The rotation about Y encodes
-        # accumulated wheel angle from odometry (visualisation only — not used
-        # for localisation).
+        # Position is fixed (from URDF geometry). Only the rotation about Y
+        # (wheel spin) is updated, using the absolute accumulated angle so
+        # the wheel visually rotates correctly in RViz over time.
         if self._pub_wheel_tf:
+            # Accumulate absolute wheel angles from this cycle's deltas.
+            for i in range(4):
+                self._wheel_angle[i] += dw[i]
+
+            # Positions match URDF joint origins exactly:
+            #   x: ±wheel_separation_y (half wheelbase,   URDF wheel_x_offset)
+            #   y: ±wheel_separation_x (half track-width, URDF wheel_y_offset)
+            #   z: wheel_z_offset parameter (URDF wheel_z_offset="-0.0784")
+            wz = self.get_parameter('wheel_z_offset').value
             wheel_joints = [
-                # (child_frame,          x,                    y,                     z)
-                ('wheel_rear_left',   -self._lx,  self._ly,  0.0),
-                ('wheel_rear_right',  -self._lx, -self._ly,  0.0),
-                ('wheel_front_left',   self._lx,  self._ly,  0.0),
-                ('wheel_front_right',  self._lx, -self._ly,  0.0),
+                # (child_frame,          x,           y,           z )
+                ('wheel_rear_left',  -self._ly,  self._lx,   wz),
+                ('wheel_rear_right', -self._ly, -self._lx,   wz),
+                ('wheel_front_left',  self._ly,  self._lx,   wz),
+                ('wheel_front_right', self._ly, -self._lx,   wz),
             ]
             wheel_tfs = []
             for i, (child, wx, wy, wz) in enumerate(wheel_joints):
-                # Accumulated angle for this wheel [rad] from odometry deltas.
-                # We reuse _enc_delta_odom *before* it was zeroed above (dw).
-                wheel_angle = dw[i] / self._r if self._r > 0 else 0.0
-                half_wa = wheel_angle / 2.0
+                half_wa = self._wheel_angle[i] / 2.0
                 wtf = TransformStamped()
                 wtf.header.stamp    = now
                 wtf.header.frame_id = self._base_frame
@@ -509,7 +518,6 @@ class MecanumDriverNode(Node):
                 wtf.transform.translation.x = wx
                 wtf.transform.translation.y = wy
                 wtf.transform.translation.z = wz
-                # Rotation about Y axis (wheel spin)
                 wtf.transform.rotation.y = math.sin(half_wa)
                 wtf.transform.rotation.w = math.cos(half_wa)
                 wheel_tfs.append(wtf)
