@@ -1,4 +1,4 @@
-imu_filter_node:
+imu_filter_madgwick:
   ros__parameters:
     use_mag: true
     publish_tf: false           # EKF owns TF, not this filter

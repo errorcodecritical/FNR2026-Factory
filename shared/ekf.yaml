@@ -1,13 +1,15 @@
-ekf_node:
+ekf_filter_node:
   ros__parameters:
     frequency: 50.0
     sensor_timeout: 0.1
     two_d_mode: true
     print_diagnostics: true
+    publish_tf: true
 
-    odom_frame:      odom
-    base_link_frame: base_link
-    world_frame:     odom       # local odometry, no GPS
+    map_frame: map              # Defaults to "map" if unspecified
+    odom_frame: odom            # Defaults to "odom" if unspecified
+    base_link_frame: base_link  # Defaults to "base_link" if unspecified
+    world_frame: odom           # Defaults to the value of odom_frame if unspecifiedS
 
     # ── Wheel odometry ──────────────────────────────────────────────────────
     # Contributes: vx, vy (body-frame linear velocity) and vyaw.
@@ -41,7 +43,7 @@ ekf_node:
     # Do NOT fuse roll/pitch — two_d_mode=true ignores them anyway.
     # Do NOT fuse absolute yaw from IMU here (no magnetometer in EKF —
     # use imu_filter_madgwick to produce a fused /imu/data first).
-    imu0: /imu/data_raw
+    imu0: imu/data
     imu0_config: [false, false, false,   # x,  y,  z
                   false, false, false,   # rx, ry, rz  (use /imu/data for fused yaw)
                   false, false, false,   # vx, vy, vz

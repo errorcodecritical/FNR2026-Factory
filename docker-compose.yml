@@ -150,7 +150,6 @@ services:
     volumes:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
@@ -171,7 +170,6 @@ services:
     volumes:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
@@ -198,7 +196,6 @@ services:
     volumes:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - ./config:/root/config
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
@@ -210,7 +207,7 @@ services:
       - robot_localization
       - bash
       - -c
-      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
+      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml --remap odometry/filtered:=odom
 
   # SLAM Toolbox for mapping
   slam_mapping:
@@ -242,32 +239,31 @@ services:
       - -c
       - sleep 5 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/root/nav2_ws/config/mapper_params_online_async.yaml use_sim_time:=false
 
-  # # ─────────────────────────────────────────────
-  # # VISUALIZATION
-  # # ─────────────────────────────────────────────
+  # ─────────────────────────────────────────────
+  # VISUALIZATION
+  # ─────────────────────────────────────────────
 
-  # rviz2:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile.nav2
-  #   container_name: slam_rviz
-  #   privileged: true
-  #   network_mode: host
-  #   volumes:
-  #     - /tmp/.X11-unix:/tmp/.X11-unix:rw
-  #   environment:
-  #     - DISPLAY=${DISPLAY}
-  #     - ROS_DOMAIN_ID=0
-  #     - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-  #   stdin_open: true
-  #   tty: true
-  #   depends_on:
-  #     - slam_mapping
-  #     - robot_localization
-  #     - publisher
-  #   command: >
-  #     bash -c "
-  #     source /opt/ros/jazzy/setup.bash &&
-  #     sleep 8 &&
-  #     ros2 run rviz2 rviz2 -d /root/nav2_ws/config/slam.rviz
-  #     "
+  rviz2:
+    build:
+      context: .
+      dockerfile: Dockerfile.rviz
+    container_name: rviz2-visualization
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+    stdin_open: true
+    tty: true
+    command:
+      - rviz2
+      - bash
+      - -c
+      - ros2 run rviz2 rviz2 -d /shared/view.rviz
