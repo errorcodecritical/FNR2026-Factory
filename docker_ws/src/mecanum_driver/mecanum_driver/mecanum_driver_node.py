@@ -66,7 +66,7 @@ rqt_plot examples
   /wheel_debug/data[8] /wheel_debug/data[9]   # FL
   /wheel_debug/data[12] /wheel_debug/data[13] # FR
 
-  # All four tracking errors:1 
+  # All four tracking errors:
   /wheel_debug/data[2] /wheel_debug/data[6] /wheel_debug/data[10] /wheel_debug/data[14]
 
   # All four PWM outputs:
@@ -83,13 +83,14 @@ Parameters (all settable via ROS 2 parameter server)
                                         Motor 1 (RR): 899 PPR – Rear Right
                                         Motor 2 (FL): 1495 PPR (different gearing) – Front Left
                                         Motor 3 (FR): 900 PPR – Front Right
-  odom_frame_id       [str]    "odom"
+  odom_topic          [str]    "odom_wheel"   topic name for odometry publication
+  odom_frame_id       [str]    "odom_wheel"   frame_id written into the Odometry message header
   base_frame_id       [str]    "base_link"
-  publish_tf          [bool]   True
+  publish_tf          [bool]   False    disabled by default — use robot_localization EKF instead
 
   control_rate        [Hz]     50.0     PI control loop rate
-  pid_kp              [–]      22.0     proportional gain  (PWM per rad/s error) - tuned from motor characterization
-  pid_ki              [–]      45.0     integral gain      (PWM per rad error) - tuned from motor characterization
+  pid_kp              [–]      22.0     proportional gain  (PWM per rad/s error)
+  pid_ki              [–]      45.0     integral gain      (PWM per rad error)
   pid_i_clamp         [–]      100.0    integrator anti-windup clamp  [PWM units]
 
   odom_rate           [Hz]     20.0     odometry publish rate
@@ -116,15 +117,7 @@ def clamp(value: float, lo: float, hi: float) -> float:
 
 
 class WheelPI:
-    """Lightweight PI controller for one wheel.
-
-    Call ``update(setpoint, measured, dt)`` at a fixed rate; returns the
-    correction term in PWM units.  The feedforward is handled externally so
-    that this class is concerned only with the error-driven correction.
-
-    Anti-windup: the integrator is clamped to ±i_clamp so that the integral
-    term alone never exceeds the clamp, preventing wind-up during saturation.
-    """
+    """Lightweight PI controller for one wheel."""
 
     def __init__(self, kp: float = 0.0, ki: float = 0.0, i_clamp: float = 80.0):
         self.kp        = kp
@@ -153,13 +146,8 @@ class WheelPI:
 
 class MecanumDriverNode(Node):
 
-    # ---- constants ------------------------------------------------
     TWO_PI            = 2.0 * math.pi
-    # Note: WHEEL_PPR is now per-motor configurable (loaded from parameters)
-
-    # ---- debug topic layout -----------------------------------------------
-    # 4 wheels × 4 fields (setpoint, measured, error, pwm) = 16 floats
-    _WHEEL_NAMES  = ('RL', 'RR', 'FL', 'FR')   # motor-index order: 0=RL, 1=RR, 2=FL, 3=FR
+    _WHEEL_NAMES  = ('RL', 'RR', 'FL', 'FR')
     _DEBUG_FIELDS = ('setpoint', 'measured', 'error', 'pwm')
     _DEBUG_LEN    = len(_WHEEL_NAMES) * len(_DEBUG_FIELDS)   # 16
 
@@ -177,11 +165,13 @@ class MecanumDriverNode(Node):
             f"lx={self._lx:.3f} m  ly={self._ly:.3f} m  "
             f"Motor PPR={self._motor_ppr}  "
             f"Kp={self._kp:.2f}  Ki={self._ki:.2f}  "
-            f"control_rate={self._control_rate:.0f} Hz"
+            f"control_rate={self._control_rate:.0f} Hz  "
+            f"odom_topic={self._odom_topic}  "
+            f"odom_frame_id={self._odom_frame}"
         )
 
         # ------------------------------------------------------------------ #
-        # PI controllers  (one per wheel)                                      #
+        # PI controllers                                                       #
         # ------------------------------------------------------------------ #
         self._pi = [
             WheelPI(self._kp, self._ki, self._i_clamp)
@@ -191,13 +181,12 @@ class MecanumDriverNode(Node):
         # ------------------------------------------------------------------ #
         # State                                                                #
         # ------------------------------------------------------------------ #
-        self._enc_last      = [None] * 4
-        self._enc_last_time = [None] * 4
-        self._omega_meas    = [0.0]  * 4
-        self._omega_setpoint = [0.0] * 4
-        self._enc_delta_odom = [0.0] * 4
+        self._enc_last       = [None] * 4
+        self._enc_last_time  = [None] * 4
+        self._omega_meas     = [0.0]  * 4
+        self._omega_setpoint = [0.0]  * 4
+        self._enc_delta_odom = [0.0]  * 4
 
-        # Odometry pose
         self._x   = 0.0
         self._y   = 0.0
         self._yaw = 0.0
@@ -209,7 +198,9 @@ class MecanumDriverNode(Node):
             self.create_publisher(Int16, f'/motor{i}/cmd', 10)
             for i in range(4)
         ]
-        self._odom_pub = self.create_publisher(Odometry, '/odom', 10)
+
+        # Odometry topic name is now driven by the 'odom_topic' parameter.
+        self._odom_pub = self.create_publisher(Odometry, self._odom_topic, 10)
 
         if self._pub_tf:
             self._tf_broadcaster = TransformBroadcaster(self)
@@ -218,8 +209,6 @@ class MecanumDriverNode(Node):
             self._debug_pub = self.create_publisher(
                 Float32MultiArray, '/wheel_debug', 10
             )
-            # Build the layout once — rqt_plot only needs data[], but having
-            # a labelled layout makes the topic self-documenting.
             self._debug_msg = Float32MultiArray()
             self._debug_msg.layout.data_offset = 0
             for wi, wname in enumerate(self._WHEEL_NAMES):
@@ -270,37 +259,43 @@ class MecanumDriverNode(Node):
         self.declare_parameter('wheel_separation_x',  0.160,  _d('Half track-width – left to right centre [m]'))
         self.declare_parameter('wheel_separation_y',  0.140,  _d('Half wheelbase – front to rear centre [m]'))
         self.declare_parameter('max_motor_speed',     10.0,   _d('Wheel angular speed [rad/s] that maps to PWM 255'))
-        # Per-motor PPR values – Motor 0 (RL), 1 (RR), 2 (FL), 3 (FR)
-        self.declare_parameter('motor_ppr',          [881.0, 899.0, 1495.0, 900.0],
+        self.declare_parameter('motor_ppr', [881.0, 899.0, 1495.0, 900.0],
                                _d('Motor PPR per index [Motor0=RL, Motor1=RR, Motor2=FL, Motor3=FR]'))
         self.declare_parameter('encoder_ppr',         234.3,  _d('(Deprecated) Use motor_ppr instead'))
-        self.declare_parameter('odom_frame_id',       'odom',      _d('Odometry frame id'))
-        self.declare_parameter('base_frame_id',       'base_link', _d('Robot base frame id'))
-        self.declare_parameter('publish_tf',          True,        _d('Broadcast odom→base_link TF'))
+        # odom_topic controls both the ROS topic name and, independently,
+        # odom_frame_id controls the frame_id written into the message header.
+        # Default to "odom_wheel" for both so this source does not conflict
+        # with rf2o (odom_rf2o) or a fused EKF output (odom).
+        self.declare_parameter('odom_topic',    'odom_wheel', _d('Odometry topic name'))
+        self.declare_parameter('odom_frame_id', 'odom_wheel', _d('Odometry header frame_id'))
+        self.declare_parameter('base_frame_id', 'base_link',  _d('Robot base frame id'))
+        # publish_tf defaults to False: the EKF (robot_localization) should be
+        # the single publisher of the authoritative odom→base_link transform.
+        self.declare_parameter('publish_tf',    False, _d('Broadcast odom→base_link TF (disable when using EKF)'))
         self.declare_parameter('control_rate',        50.0,  _d('PI control loop rate [Hz]'))
         self.declare_parameter('odom_rate',           20.0,  _d('Odometry publish rate [Hz]'))
-        self.declare_parameter('pid_kp',              22.0,  _d('Proportional gain [PWM / (rad/s)] – tuned from motor characterization'))
-        self.declare_parameter('pid_ki',              45.0,  _d('Integral gain [PWM / rad] – tuned from motor characterization'))
+        self.declare_parameter('pid_kp',              22.0,  _d('Proportional gain [PWM / (rad/s)]'))
+        self.declare_parameter('pid_ki',              45.0,  _d('Integral gain [PWM / rad]'))
         self.declare_parameter('pid_i_clamp',         100.0, _d('Integrator anti-windup clamp [PWM units]'))
         self.declare_parameter('publish_wheel_debug', True,  _d('Publish /wheel_debug Float32MultiArray for rqt_plot'))
 
     def _load_params(self):
         g = self.get_parameter
-        self._r                  = g('wheel_radius').value
-        self._lx                 = g('wheel_separation_x').value
-        self._ly                 = g('wheel_separation_y').value
-        self._l                  = self._lx + self._ly
-        self._max_speed          = g('max_motor_speed').value
-        # Load per-motor PPR values (default: [881.0, 899.0, 1495.0, 900.0])
-        self._motor_ppr          = g('motor_ppr').value
-        self._odom_frame         = g('odom_frame_id').value
-        self._base_frame         = g('base_frame_id').value
-        self._pub_tf             = g('publish_tf').value
-        self._control_rate       = g('control_rate').value
-        self._odom_rate          = g('odom_rate').value
-        self._kp                 = g('pid_kp').value
-        self._ki                 = g('pid_ki').value
-        self._i_clamp            = g('pid_i_clamp').value
+        self._r                   = g('wheel_radius').value
+        self._lx                  = g('wheel_separation_x').value
+        self._ly                  = g('wheel_separation_y').value
+        self._l                   = self._lx + self._ly
+        self._max_speed           = g('max_motor_speed').value
+        self._motor_ppr           = g('motor_ppr').value
+        self._odom_topic          = g('odom_topic').value       # ← new
+        self._odom_frame          = g('odom_frame_id').value
+        self._base_frame          = g('base_frame_id').value
+        self._pub_tf              = g('publish_tf').value
+        self._control_rate        = g('control_rate').value
+        self._odom_rate           = g('odom_rate').value
+        self._kp                  = g('pid_kp').value
+        self._ki                  = g('pid_ki').value
+        self._i_clamp             = g('pid_i_clamp').value
         self._publish_wheel_debug = g('publish_wheel_debug').value
 
     def _on_params_changed(self, params):
@@ -332,16 +327,6 @@ class MecanumDriverNode(Node):
     # ======================================================================= #
 
     def _cmd_vel_cb(self, msg: Twist):
-        """
-        Mecanum inverse kinematics -> per-wheel velocity setpoints [rad/s].
-
-        w_FL =  (vx - vy - l*wz) / r
-        w_FR =  (vx + vy + l*wz) / r
-        w_RL =  (vx + vy - l*wz) / r
-        w_RR =  (vx - vy + l*wz) / r
-
-        Motor mapping:  0=RL  1=RR  2=FL  3=FR
-        """
         vx = msg.linear.x
         vy = msg.linear.y
         wz = msg.angular.z
@@ -360,17 +345,10 @@ class MecanumDriverNode(Node):
                 pi.reset()
 
     # ======================================================================= #
-    # Encoder callbacks  ->  measured wheel velocity + odom accumulator        #
+    # Encoder callbacks                                                        #
     # ======================================================================= #
 
     def _encoder_cb(self, msg: Int16, idx: int):
-        """
-        Two jobs:
-          1. Estimate instantaneous wheel angular velocity for the PI loop.
-          2. Accumulate displacement [rad] for odometry integration.
-
-        Motor mapping:  0=RR  1=RL  2=FR  3=FL
-        """
         now = self.get_clock().now()
         raw = msg.data
 
@@ -387,7 +365,6 @@ class MecanumDriverNode(Node):
 
         self._enc_last[idx] = raw
 
-        # Use motor-specific PPR value
         ppr = self._motor_ppr[idx] if idx < len(self._motor_ppr) else self._motor_ppr[0]
         delta_rad = (diff / ppr) * self.TWO_PI
 
@@ -399,20 +376,11 @@ class MecanumDriverNode(Node):
         self._enc_delta_odom[idx] += delta_rad
 
     # ======================================================================= #
-    # Control loop  (runs at control_rate Hz)                                  #
+    # Control loop                                                             #
     # ======================================================================= #
 
     def _control_loop(self):
-        """
-        Per-wheel PI + feedforward -> PWM output.
-
-        PWM = clamp( feedforward + PI_correction, -255, 255 )
-
-        Publishes /wheel_debug with setpoint, measured, error, and PWM for
-        each wheel so the PI response can be monitored live in rqt_plot.
-        """
         dt = 1.0 / self._control_rate
-
         debug_data = [0.0] * self._DEBUG_LEN
 
         for i in range(4):
@@ -428,7 +396,6 @@ class MecanumDriverNode(Node):
             cmd.data = pwm
             self._motor_pubs[i].publish(cmd)
 
-            # Pack debug data: 4 fields per wheel, in motor-index order
             base = i * len(self._DEBUG_FIELDS)
             debug_data[base + 0] = float(sp)
             debug_data[base + 1] = float(meas)
@@ -440,19 +407,10 @@ class MecanumDriverNode(Node):
             self._debug_pub.publish(self._debug_msg)
 
     # ======================================================================= #
-    # Odometry publish  (runs at odom_rate Hz)                                 #
+    # Odometry publish                                                         #
     # ======================================================================= #
 
     def _publish_odom(self):
-        """
-        Mecanum forward kinematics from accumulated wheel displacements:
-
-        dx_body = r/4   * ( dw_FL + dw_FR + dw_RL + dw_RR )
-        dy_body = r/4   * (-dw_FL + dw_FR + dw_RL - dw_RR )
-        dyaw    = r/4*l * (-dw_FL + dw_FR - dw_RL + dw_RR )
-
-        Motor mapping:  0=RL  1=RR  2=FL  3=FR
-        """
         dw = self._enc_delta_odom[:]
         self._enc_delta_odom = [0.0] * 4
 
@@ -479,7 +437,7 @@ class MecanumDriverNode(Node):
 
         odom = Odometry()
         odom.header.stamp    = now
-        odom.header.frame_id = self._odom_frame
+        odom.header.frame_id = self._odom_frame   # driven by odom_frame_id param
         odom.child_frame_id  = self._base_frame
 
         odom.pose.pose.position.x    = self._x
