@@ -77,7 +77,7 @@ mecanum_driver:
     # Motor 1 (RR): 899 PPR  – Rear Right
     # Motor 2 (FL): 1495 PPR – Front Left (different gearing/encoder configuration)
     # Motor 3 (FR): 900 PPR  – Front Right
-    motor_ppr:  [881.0, 899.0, 1495.0, 900.0]
+    motor_ppr:  [890.0, 890.0, 1500.0, 890.0]
 
     # (Deprecated) Old single PPR value — motor_ppr above supersedes this.
     # Kept for backward compatibility only.
@@ -90,7 +90,7 @@ mecanum_driver:
     odom_frame_id:    "odom_wheel"
     base_frame_id:    "base_link"
     publish_odom_tf:  false   # set true only if NOT using robot_localization EKF
-    publish_wheel_tf: false   # set true only if NOT using robot_state_publisher
+    publish_wheel_tf: true   # set true only if NOT using robot_state_publisher
 
     # -------------------------------------------------------------------------
     # Loop rates
