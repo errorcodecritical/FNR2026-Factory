@@ -183,7 +183,12 @@ class MinIMU9Node(Node):
             data['gyro_z'] * self.gyro_scale
         ])
         
-        # Apply preprocessing if enabled
+        # Always use raw data for /imu/data_raw topic
+        accel = accel_raw
+        gyro = gyro_raw
+        is_valid = True
+        
+        # Apply preprocessing if enabled to detect outliers
         if self.enable_preprocessing:
             accel_processed, gyro_processed, is_valid = self.preprocessor.preprocess(
                 accel_raw,
@@ -193,16 +198,9 @@ class MinIMU9Node(Node):
                 outlier_threshold=self.outlier_threshold
             )
             
-            # Skip this measurement if it's an outlier
+            # Log when outlier detected but still publish raw data
             if not is_valid:
-                self.get_logger().debug('Outlier detected and rejected')
-                return
-            
-            accel = accel_processed
-            gyro = gyro_processed
-        else:
-            accel = accel_raw
-            gyro = gyro_raw
+                self.get_logger().debug('Outlier detected in raw IMU data')
         
         msg = Imu()
         
