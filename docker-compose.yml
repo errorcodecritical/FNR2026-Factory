@@ -310,29 +310,12 @@ services:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
     environment:
-      - MAP_NAME=${MAP_NAME:-fnr26_map}
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
     stdin_open: true
     tty: true
-    command:
-      - bash
-      - -c
-      - |
-        echo "Waiting for SLAM to produce map data..."
-        sleep 10
-        MAP_FILE="/shared/maps/${MAP_NAME}"
-        echo "Saving map to: $$MAP_FILE"
-        ros2 run nav2_map_server map_saver_cli -f "$$MAP_FILE"
-        if [ -f "$$MAP_FILE.yaml" ]; then
-          echo "Map saved successfully!"
-          echo "Files created:"
-          ls -lh "$$MAP_FILE".*
-        else
-          echo "Failed to save map"
-          exit 1
-        fi
+    command: bash /shared/save_map.sh
 
   # Nav2 Navigation Service - Autonomous navigation using pre-built maps
   # Profile: nav2_navigation
