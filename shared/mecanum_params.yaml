@@ -90,7 +90,7 @@ mecanum_driver:
     odom_frame_id:    "odom_wheel"
     base_frame_id:    "base_link"
     publish_odom_tf:  false   # set true only if NOT using robot_localization EKF
-    publish_wheel_tf: true   # set true only if NOT using robot_state_publisher
+    publish_wheel_tf: false  # false — use robot_state_publisher from URDF instead
 
     # -------------------------------------------------------------------------
     # Loop rates
