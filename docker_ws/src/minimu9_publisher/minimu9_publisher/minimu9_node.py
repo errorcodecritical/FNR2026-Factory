@@ -6,6 +6,8 @@ from sensor_msgs.msg import Imu, MagneticField
 from std_msgs.msg import Header
 import serial
 import time
+import numpy as np
+from .imu_preprocessor import IMUPreprocessor
 
 
 class MinIMU9Node(Node):
@@ -19,12 +21,39 @@ class MinIMU9Node(Node):
         self.declare_parameter('baud_rate', 115200)
         self.declare_parameter('frame_id', 'imu_link')
         self.declare_parameter('publish_rate', 50.0)
+        self.declare_parameter('calibration_dir', '/shared')
+        self.declare_parameter('enable_preprocessing', True)
+        self.declare_parameter('enable_outlier_removal', True)
+        self.declare_parameter('enable_low_pass_filter', True)
+        self.declare_parameter('outlier_threshold', 3.0)
         
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').value
         self.baud_rate = self.get_parameter('baud_rate').value
         self.frame_id = self.get_parameter('frame_id').value
         self.publish_rate = self.get_parameter('publish_rate').value
+        self.calibration_dir = self.get_parameter('calibration_dir').value
+        self.enable_preprocessing = self.get_parameter('enable_preprocessing').value
+        self.enable_outlier_removal = self.get_parameter('enable_outlier_removal').value
+        self.enable_low_pass_filter = self.get_parameter('enable_low_pass_filter').value
+        self.outlier_threshold = self.get_parameter('outlier_threshold').value
+        
+        # Initialize IMU preprocessor
+        self.preprocessor = IMUPreprocessor(
+            calibration_data_dir=self.calibration_dir,
+            logger=self.get_logger()
+        )
+        
+        # Get calibration statistics for logging
+        calib_stats = self.preprocessor.get_calibration_stats()
+        self.get_logger().info(f'IMU Calibration Statistics: {calib_stats}')
+        
+        # Compute covariance matrices from calibration data
+        self.accel_cov, self.gyro_cov = self.preprocessor.compute_covariance_matrices()
+        self.get_logger().info(
+            f'Accelerometer covariance: {self.accel_cov}\n'
+            f'Gyroscope covariance: {self.gyro_cov}'
+        )
         
         # Create publishers
         self.imu_pub = self.create_publisher(Imu, 'imu/data_raw', 10)
@@ -141,6 +170,40 @@ class MinIMU9Node(Node):
     
     def publish_imu_data(self, data):
         """Publish IMU message (accel + gyro)."""
+        # Extract raw sensor values
+        accel_raw = np.array([
+            data['accel_x'] * self.accel_scale,
+            data['accel_y'] * self.accel_scale,
+            data['accel_z'] * self.accel_scale
+        ])
+        
+        gyro_raw = np.array([
+            data['gyro_x'] * self.gyro_scale,
+            data['gyro_y'] * self.gyro_scale,
+            data['gyro_z'] * self.gyro_scale
+        ])
+        
+        # Apply preprocessing if enabled
+        if self.enable_preprocessing:
+            accel_processed, gyro_processed, is_valid = self.preprocessor.preprocess(
+                accel_raw,
+                gyro_raw,
+                remove_outliers=self.enable_outlier_removal,
+                apply_filter=self.enable_low_pass_filter,
+                outlier_threshold=self.outlier_threshold
+            )
+            
+            # Skip this measurement if it's an outlier
+            if not is_valid:
+                self.get_logger().debug('Outlier detected and rejected')
+                return
+            
+            accel = accel_processed
+            gyro = gyro_processed
+        else:
+            accel = accel_raw
+            gyro = gyro_raw
+        
         msg = Imu()
         
         # Header
@@ -149,30 +212,21 @@ class MinIMU9Node(Node):
         msg.header.frame_id = self.frame_id
         
         # Linear acceleration (m/s²)
-        msg.linear_acceleration.x = data['accel_x'] * self.accel_scale
-        msg.linear_acceleration.y = data['accel_y'] * self.accel_scale
-        msg.linear_acceleration.z = data['accel_z'] * self.accel_scale
+        msg.linear_acceleration.x = float(accel[0])
+        msg.linear_acceleration.y = float(accel[1])
+        msg.linear_acceleration.z = float(accel[2])
         
         # Angular velocity (rad/s)
-        msg.angular_velocity.x = data['gyro_x'] * self.gyro_scale
-        msg.angular_velocity.y = data['gyro_y'] * self.gyro_scale
-        msg.angular_velocity.z = data['gyro_z'] * self.gyro_scale
+        msg.angular_velocity.x = float(gyro[0])
+        msg.angular_velocity.y = float(gyro[1])
+        msg.angular_velocity.z = float(gyro[2])
         
         # Orientation not provided by raw sensor
         msg.orientation_covariance[0] = -1.0
         
-        # Covariance matrices (simplified - you may want to calibrate these)
-        msg.linear_acceleration_covariance = [
-            0.01, 0.0, 0.0,
-            0.0, 0.01, 0.0,
-            0.0, 0.0, 0.01
-        ]
-        
-        msg.angular_velocity_covariance = [
-            0.01, 0.0, 0.0,
-            0.0, 0.01, 0.0,
-            0.0, 0.0, 0.01
-        ]
+        # Use calibration-based covariance matrices
+        msg.linear_acceleration_covariance = self.accel_cov
+        msg.angular_velocity_covariance = self.gyro_cov
         
         self.imu_pub.publish(msg)
     

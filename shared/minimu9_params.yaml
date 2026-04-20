@@ -1,0 +1,16 @@
+minimu9_node:
+  ros__parameters:
+    # Serial Configuration
+    serial_port: /dev/ttyACM_ARDUINO
+    baud_rate: 115200
+    frame_id: imu_link
+    publish_rate: 50.0  # Hz
+    
+    # Calibration
+    calibration_dir: /shared  # Directory containing linear_imu.csv and angular_imu.csv
+    
+    # Preprocessing Pipeline
+    enable_preprocessing: true  # Enable all preprocessing steps
+    enable_outlier_removal: true  # Detect and reject outlier measurements
+    enable_low_pass_filter: true  # Apply noise filtering (moving average)
+    outlier_threshold: 3.0  # Z-score threshold for outlier detection (in standard deviations)

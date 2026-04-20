@@ -1,14 +1,35 @@
 imu_filter_madgwick:
   ros__parameters:
+    # ─────────────────────────────────────────────────────────────────────
+    # PREPROCESSING
+    # ─────────────────────────────────────────────────────────────────────
+    # Raw IMU data from minimu9_publisher is preprocessed before this node:
+    # 
+    # 1. CALIBRATION (Bias Removal)
+    #    - Mean offset removed using statistics from:
+    #      * linear_imu.csv (accelerometer bias)
+    #      * angular_imu.csv (gyroscope bias)
+    #
+    # 2. NOISE FILTERING
+    #    - Exponential moving average (low-pass filter)
+    #    - Window size: 5 samples
+    #    - Reduces high-frequency noise while preserving signal
+    #
+    # 3. OUTLIER DETECTION
+    #    - Z-score based detection (3-sigma rule)
+    #    - Invalid measurements discarded before fusion
+    #
+    # Enable preprocessing in minimu9_params.yaml
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # MADGWICK FILTER PARAMETERS
+    # ─────────────────────────────────────────────────────────────────────
     use_mag: true
-    publish_tf: false           # EKF owns TF, not this filter
-    world_frame: enu            # or ned depending on your IMU convention
-    gain: 0.01                  # Madgwick beta — lower = smoother, slower convergence
-    zeta: 0.0
-    mag_bias_x: 0.0             # calibrate and fill these in
-    mag_bias_y: 0.0
-    mag_bias_z: 0.0
+    publish_tf: false
+    world_frame: enu
+    gain: 0.1  # Proportional gain (beta parameter)
+    zeta: 0.015  # Integral gain (corrects gyro bias — increase if drift persists)
+    use_magnetic_field_msg: true
+    remove_gravity_vector: true  # Remove gravity from accel before fusion
     stateless: false
     fixed_frame: odom
-    use_magnetic_field_msg: true  # expects sensor_msgs/MagneticField on /imu/mag
-    remove_gravity_vector: true

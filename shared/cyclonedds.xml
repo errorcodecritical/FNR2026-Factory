@@ -3,13 +3,26 @@
     <Domain id="any">
         <General>
             <Interfaces>
-                <NetworkInterface name="wlo1" multicast="true" priority="default"/>
+                <NetworkInterface name="wlo1" multicast="true" />
             </Interfaces>
-            <AllowMulticast>true</AllowMulticast>
+            <!-- Use 'spdp' to only use multicast for discovery, but unicast for data -->
+            <AllowMulticast>spdp</AllowMulticast> 
         </General>
         <Discovery>
             <ParticipantIndex>auto</ParticipantIndex>
-            <MaxAutoParticipantIndex>100</MaxAutoParticipantIndex>
+            <MaxAutoParticipantIndex>20</MaxAutoParticipantIndex> <!-- Lowered from 100 -->
+            <!-- Send discovery heartbeats less often (default is 1s) -->
+            <SPDPInterval>5s</SPDPInterval>
         </Discovery>
+        <Internal>
+            <!-- Limit the amount of unacknowledged data before slowing down -->
+            <Watermarks>
+                <WhcHigh>256kB</WhcHigh>
+            </Watermarks>
+        </Internal>
+        <Compatibility>
+            <!-- Don't send default QoS values to save discovery bytes -->
+            <ExplicitlyPublishQosSetToDefault>false</ExplicitlyPublishQosSetToDefault>
+        </Compatibility>
     </Domain>
 </CycloneDDS>

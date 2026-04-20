@@ -61,7 +61,7 @@ services:
       - minimu9_publisher
       - bash
       - -c
-      - ros2 run minimu9_publisher minimu9_node
+      - ros2 run minimu9_publisher minimu9_node --ros-args --params-file /shared/minimu9_params.yaml
 
   mecanum_driver:
     build:
