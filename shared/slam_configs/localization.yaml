@@ -1,0 +1,96 @@
+slam_toolbox:
+  ros__parameters:
+    # ─────────────────────────────────────────────────────────────────────
+    # ROS COMMUNICATION PARAMETERS
+    # ─────────────────────────────────────────────────────────────────────
+    
+    # Topic and frame names
+    scan_topic: /scan
+    odom_topic: /odometry/filtered  # EKF publishes to /odometry/filtered by default
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    
+    # Publishing configuration
+    publish_tf: true  # Publishes map → odom transform
+    mode: localization  # Localization mode - uses pre-built map
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # MAP CONFIGURATION
+    # ─────────────────────────────────────────────────────────────────────
+    
+    # Path to the pre-built map
+    map_file_name: /shared/maps/my_map_serial
+    
+    # Robot starting position (x, y, theta)
+    map_start_pose: [0.0, 0.0, 0.0]
+    
+    # Start at the dock (predefined starting location)
+    map_start_at_dock: true
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # PERFORMANCE AND RESOLUTION
+    # ─────────────────────────────────────────────────────────────────────
+    
+    # Resolution of the occupancy grid (meters per cell)
+    resolution: 0.05
+    
+    # Maximum laser range to consider (meters)
+    max_laser_range: 12.0
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # UPDATE PARAMETERS
+    # ─────────────────────────────────────────────────────────────────────
+    
+    # Update intervals
+    map_update_interval: 5.0
+    transform_publish_period: 0.02
+    minimum_time_interval: 0.5
+    
+    # Minimum movement to process a scan
+    minimum_travel_distance: 0.2
+    minimum_travel_heading: 0.2
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # SCAN MATCHING FOR LOCALIZATION
+    # ─────────────────────────────────────────────────────────────────────
+    
+    # Scan matching algorithms
+    use_scan_matching: true
+    use_scan_barycenter: true
+    
+    # Scan buffer for better matching
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    
+    # Matching tolerances
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance: 1.5
+    
+    # Correlation search space
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # SOLVER PARAMETERS
+    # ─────────────────────────────────────────────────────────────────────
+    
+    # Optimization solver configuration
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+    
+    # Stack size for the solver
+    stack_size_to_use: 40000000
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # DEBUGGING AND LOGGING
+    # ─────────────────────────────────────────────────────────────────────
+    
+    debug_logging: false
+    throttle_scans: 1  # Process every Nth scan
+    transform_timeout: 0.2
+    tf_buffer_duration: 30.0

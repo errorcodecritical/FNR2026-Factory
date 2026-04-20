@@ -5,11 +5,15 @@ ekf_filter_node:
     two_d_mode: true
     print_diagnostics: true
     publish_tf: true
+    print_diagnostics: true
 
-    map_frame: map              # Defaults to "map" if unspecified
-    odom_frame: odom            # Defaults to "odom" if unspecified
-    base_link_frame: base_link  # Defaults to "base_link" if unspecified
-    world_frame: odom           # Defaults to the value of odom_frame if unspecifiedS
+    # map_frame: map              # Map frame (used by SLAM for map → odom)
+    odom_frame: odom            # Odometry frame (EKF publishes odom → base_link)
+    base_link_frame: base_link  # Robot base frame
+    world_frame: odom           # EKF publishes relative to odom frame
+    # Note: When SLAM is active, it will handle map → odom transform.
+    # EKF always publishes odom → base_link. The full chain becomes:
+    # map (SLAM) → odom (SLAM) → base_link (EKF)
 
     # ── Wheel odometry ──────────────────────────────────────────────────────
     # Contributes: vx, vy (body-frame linear velocity) and vyaw.

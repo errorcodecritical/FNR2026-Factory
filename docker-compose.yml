@@ -1,9 +1,25 @@
 version: '3.8'
 
+# Docker Compose Profiles for different operation modes:
+# - default: All hardware and basic localization stack (no SLAM)
+# - slam_mapping: Active mapping mode (builds new maps)
+# - slam_localization: Use pre-built maps for localization only
+# - map_save: Save current map to disk
+# - nav2_navigation: Autonomous navigation with Nav2 stack
+# - visualization: Add RViz visualization
+#
+# Usage:
+#   docker compose up                              # Default (drivers + processing)
+#   docker compose --profile slam_mapping up       # With active SLAM mapping
+#   docker compose --profile slam_localization up  # With localization mode
+#   docker compose --profile map_save up           # Save the current map
+#   docker compose --profile nav2_navigation up    # With Nav2 autonomous navigation
+#   docker compose --profile visualization up      # Add RViz visualization
+
 services:
 
   # ─────────────────────────────────────────────
-  # HARDWARE DRIVERS (no dependencies)
+  # BASE IMAGE (build only)
   # ─────────────────────────────────────────────
 
   base:
@@ -12,8 +28,13 @@ services:
       dockerfile: Dockerfile.base
     container_name: fnr26factory-base
     image: fnr26factory-base:latest
-    # Don't run, just build
     command: "true"
+    # This service only builds the base image, doesn't run as container
+
+  # ─────────────────────────────────────────────
+  # HARDWARE DRIVERS (Always running)
+  # ─────────────────────────────────────────────
+  # These are core drivers required for any robot operation
 
   rplidar:
     build:
@@ -174,8 +195,6 @@ services:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    depends_on:
-      - minimu9_publisher
     command:
       - imu_filter_madgwick
       - bash
@@ -200,21 +219,27 @@ services:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    depends_on:
-      - imu_filter
-      - rf2o_odometry
     command:
       - robot_localization
       - bash
       - -c
-      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml --remap odometry/filtered:=odom
+      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
 
-  # SLAM Toolbox for mapping
+  # ─────────────────────────────────────────────
+  # SLAM & MAPPING SYSTEM
+  # ─────────────────────────────────────────────
+  # Profiles:
+  #   slam_mapping: Active mapping mode (online_async)
+  #   slam_localization: Localization in known map
+  #   map_save: Save current map to disk
+  #   visualization: Add RViz visualization
+  # ─────────────────────────────────────────────
+  # SLAM Mapping Service - Online Async Mode
   slam_mapping:
     build:
       context: .
-      dockerfile: Dockerfile.nav2
-    container_name: nav2-slam-mapping
+      dockerfile: Dockerfile.slam
+    container_name: fnr26-slam-mapping
     privileged: true
     network_mode: host
     volumes:
@@ -229,19 +254,124 @@ services:
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
     stdin_open: true
     tty: true
-    depends_on:
-      - rplidar
-      - robot_localization
-      - publisher
     command:
       - slam_toolbox
       - bash
       - -c
-      - sleep 5 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/root/nav2_ws/config/mapper_params_online_async.yaml use_sim_time:=false
+      - sleep 5 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/shared/slam_configs/online_async.yaml use_sim_time:=false
+    healthcheck:
+      test: ["CMD", "ros2", "topic", "hz", "/map"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # SLAM Localization Service - Localization Mode
+  # Profile: slam_localization
+  # Uses pre-built maps for localization only
+  slam_localization:
+    build:
+      context: .
+      dockerfile: Dockerfile.slam
+    container_name: fnr26-slam-localization
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+    stdin_open: true
+    tty: true
+    command:
+      - slam_toolbox
+      - bash
+      - -c
+      - sleep 5 && ros2 launch slam_toolbox localization_launch.py slam_params_file:=/shared/slam_configs/localization.yaml use_sim_time:=false
+    healthcheck:
+      test: ["CMD", "ros2", "topic", "hz", "/map"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Map Saver Service - Saves current SLAM map to disk
+  # Profile: map_save
+  # Usage: docker-compose --profile map_save run map_saver
+  map_saver:
+    build:
+      context: .
+      dockerfile: Dockerfile.slam
+    container_name: fnr26-slam-map-saver
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      - MAP_NAME=${MAP_NAME:-fnr26_map}
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+    stdin_open: true
+    tty: true
+    command:
+      - bash
+      - -c
+      - |
+        echo "Waiting for SLAM to produce map data..."
+        sleep 10
+        MAP_FILE="/shared/maps/${MAP_NAME}"
+        echo "Saving map to: $$MAP_FILE"
+        ros2 run nav2_map_server map_saver_cli -f "$$MAP_FILE"
+        if [ -f "$$MAP_FILE.yaml" ]; then
+          echo "Map saved successfully!"
+          echo "Files created:"
+          ls -lh "$$MAP_FILE".*
+        else
+          echo "Failed to save map"
+          exit 1
+        fi
+
+  # Nav2 Navigation Service - Autonomous navigation using pre-built maps
+  # Profile: nav2_navigation
+  # Depends on: rplidar, robot_localization, publisher
+  nav2_navigator:
+    build:
+      context: .
+      dockerfile: Dockerfile.nav2
+    container_name: fnr26-nav2-navigator
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./config:/root/nav2_ws/config
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      - MAP_FILE=${MAP_FILE:-/shared/maps/fnr26_map}
+    stdin_open: true
+    tty: true
+    command:
+      - nav2_bringup
+      - bash
+      - -c
+      - sleep 5 && ros2 launch nav2_bringup bringup_launch.py map:=${MAP_FILE}.yaml params_file:=/shared/nav2_params.yaml use_sim_time:=false
+    healthcheck:
+      test: ["CMD", "ros2", "topic", "hz", "/cmd_vel"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # ─────────────────────────────────────────────
   # VISUALIZATION
   # ─────────────────────────────────────────────
+  # Profile: visualization (optional, add with --profile visualization)
 
   rviz2:
     build:
