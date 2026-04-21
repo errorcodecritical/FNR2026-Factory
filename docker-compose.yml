@@ -379,6 +379,7 @@ services:
       - ${CAMERA_DEVICE:-/dev/video0}:${CAMERA_DEVICE:-/dev/video0}
     volumes:
       - ./shared:/shared
+      - ./shared/camera_info:/root/.ros/camera_info
       - ./docker_ws:/docker_ws
     environment:
       - ROS_DOMAIN_ID=0

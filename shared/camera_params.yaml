@@ -34,7 +34,7 @@ v4l2_camera:
     # ── Camera info ──────────────────────────────────────────────────────────
     # Path to calibration file produced by ros2 run camera_calibration
     # Leave empty if uncalibrated — camera_info topic will have zero values
-    camera_info_url: "file:///shared/camera_calibration/camera.yaml"
+    camera_info_url: "file:///shared/camera_info/unicam.yaml"
 
     # ── Output topics ────────────────────────────────────────────────────────
     # Published topics (relative to node namespace):
