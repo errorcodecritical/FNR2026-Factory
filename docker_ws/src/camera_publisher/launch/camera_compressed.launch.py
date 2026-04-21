@@ -13,9 +13,15 @@ def generate_launch_description():
             package='v4l2_camera',
             executable='v4l2_camera_node',
             namespace='camera',
-            parameters=['/shared/camera_params.yaml'],
+            parameters=[
+                '/shared/camera_params.yaml',
+                {
+                    'output_encoding': 'yuv422_yuy2',  # Output native YUYV without RGB conversion
+                    'camera_info_url': 'file:///shared/camera_info/unicam.yaml',  # Use our calibration file
+                }
+            ],
         ),
-        # Image transport node to republish as compressed only
+        # Image transport node to republish as compressed JPEG only
         # This subscribes to /camera/image_raw and republishes as /camera/image_raw/compressed
         Node(
             package='image_transport',
@@ -23,11 +29,11 @@ def generate_launch_description():
             namespace='camera',
             remappings=[
                 ('in', 'image_raw'),
-                ('out', 'image_raw/compressed'),
+                ('out', 'image_compressed'),
             ],
             arguments=['raw', 'compressed'],
             parameters=[{
-                'compressed_image_transport.jpeg_quality': 80,
+                'use_sensor_data_qos': True,
             }],
         ),
     ])

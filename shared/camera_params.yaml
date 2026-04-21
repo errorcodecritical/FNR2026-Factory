@@ -39,13 +39,3 @@ v4l2_camera:
     # ── Image transport ─────────────────────────────────────────────────────
     # Use sensor QoS for best performance
     use_sensor_data_qos: true
-
-  # ── JPEG Compression Settings ────────────────────────────────────────────
-  compressed_image_transport:
-    ros__parameters:
-      jpeg_quality: 80   # JPEG quality (1-100), higher = better quality, larger file size
-
-    # ── Output topics ────────────────────────────────────────────────────────
-    # With this configuration, only the compressed JPEG topic is published:
-    #   /camera/image_raw/compressed     — JPEG compressed (only output)
-    #   /camera/camera_info              — calibration info
