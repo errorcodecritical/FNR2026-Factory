@@ -388,7 +388,7 @@ services:
     stdin_open: true
     tty: true
     command:
-      - v4l2_camera
+      - camera_publisher
       - bash
       - -c
       - >
