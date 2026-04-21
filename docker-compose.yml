@@ -351,6 +351,27 @@ services:
       timeout: 5s
       retries: 3
 
+electromagnet_gpio:
+    build:
+      context: .
+      dockerfile: Dockerfile.electromagnet
+    container_name: electromagnet-gpio
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+    command:
+      - electromagnet_gpio
+      - bash
+      - -c
+      - ros2 launch electromagnet_gpio electromagnet.launch.py params_file:=/shared/eletro_params.yaml
+
+
   # ─────────────────────────────────────────────
   # RPi4 CAMERA
   # ─────────────────────────────────────────────
