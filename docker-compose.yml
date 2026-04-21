@@ -392,7 +392,7 @@ services:
       - bash
       - -c
       - >
-        ros2 launch robot_description camera_compressed.launch.py
+        ros2 launch camera_publisher camera_compressed.launch.py
 
   # ─────────────────────────────────────────────
   # VISUALIZATION
