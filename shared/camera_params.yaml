@@ -1,35 +1,32 @@
 # camera_params.yaml
 # -------------------
-# Parameters for the v4l2_camera node running on the RPi4.
+# Parameters for the camera_ros node running on the RPi4.
 #
-# Tune image_size and framerate to balance quality vs network bandwidth —
+# Tune width, height and framerate to balance quality vs network bandwidth —
 # raw frames at 1280x720@30fps over WiFi will saturate the link.
-# Use compressed_image_transport (see image_transport_hints below) to
-# send JPEG-compressed frames across the network instead of raw.
+# Use compressed_image_transport (republish node) to send JPEG-compressed 
+# frames across the network instead of raw.
 
-v4l2_camera:
+camera_ros_node:
   ros__parameters:
 
-    # ── Device ───────────────────────────────────────────────────────────────
-    # Check available devices on the RPi4 with: v4l2-ctl --list-devices
-    # Pi Camera Module via libcamera bridge is usually /dev/video0
-    # USB webcam may be /dev/video2 or higher if Pi Cam is also present
-    video_device: "/dev/video0"
+    # ── Camera selection ─────────────────────────────────────────────────────
+    # List available cameras with: libcamera-hello --list-cameras
+    camera: 0                    # Default camera index (0 for first available)
 
     # ── Frame ────────────────────────────────────────────────────────────────
     camera_frame_id: "camera_link"
 
-    # ── Resolution & format ──────────────────────────────────────────────────
-    # Start conservative — increase once network bandwidth is confirmed stable.
-    # Pi Camera Module v2: max 1920x1080
-    # Pi Camera Module v3: max 4608x2592 (downscale heavily for ROS use)
-    image_size: [640, 480]
-    time_per_frame: [1, 5]     # 15 fps — [numerator, denominator]
-                                # reduce to [1, 5] if WiFi is congested
+    # ── Resolution ───────────────────────────────────────────────────────────
+    # Pi Camera Module v2: supports up to 1920x1080
+    # Pi Camera Module v3: supports up to 4608x2592 (downscale for ROS)
+    # Reduce resolution if WiFi bandwidth is limited
+    width: 640
+    height: 480
 
-    # Pixel format: YUYV works on nearly all cameras.
-    # Use native format without color conversion
-    pixel_format: "YUYV"
+    # ── Framerate ────────────────────────────────────────────────────────────
+    # 15 fps for bandwidth-limited networks, 30 fps for local connections
+    framerate: 15.0
 
     # ── Camera info ──────────────────────────────────────────────────────────
     # Path to calibration file produced by ros2 run camera_calibration

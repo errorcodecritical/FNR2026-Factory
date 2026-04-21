@@ -3,11 +3,11 @@
 <package format="3">
   <name>camera_publisher</name>
   <version>0.0.1</version>
-  <description>ROS2 camera publisher with compressed JPEG output</description>
+  <description>ROS2 camera publisher using libcamera with compressed output</description>
   <maintainer email="todo@todo.com">FNR26</maintainer>
   <license>Apache-2.0</license>
 
-  <exec_depend>v4l2_camera</exec_depend>
+  <exec_depend>camera_ros</exec_depend>
   <exec_depend>image_transport</exec_depend>
   <exec_depend>compressed_image_transport</exec_depend>
   <exec_depend>camera_info_manager</exec_depend>

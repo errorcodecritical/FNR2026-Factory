@@ -373,11 +373,11 @@ services:
     container_name: rpi4-camera
     privileged: true
     network_mode: host
-    devices:
+    devices: []
       # Pass camera device through to container.
       # Override with CAMERA_DEVICE env var if your device differs.
-      - ${CAMERA_DEVICE:-/dev/video0}:${CAMERA_DEVICE:-/dev/video0}
     volumes:
+      - ${CAMERA_DEVICE:-/dev/video0}:${CAMERA_DEVICE:-/dev/video0}
       - ./shared:/shared
       - ./shared/camera_info:/root/.ros/camera_info
       - ./docker_ws:/docker_ws

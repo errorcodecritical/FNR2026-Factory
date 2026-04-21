@@ -1,6 +1,6 @@
 """
-Camera launch file - publishes only compressed JPEG images
-Subscribes to v4l2_camera's image_raw and republishes only the compressed version
+Camera launch file - uses libcamera via camera_ros for RPi camera support
+Publishes both raw and compressed JPEG images
 """
 from launch import LaunchDescription
 from launch_ros.actions import Node
@@ -8,27 +8,26 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     return LaunchDescription([
-        # Start v4l2_camera node (will publish to /camera/image_raw internally)
+        # Start camera_ros node - native libcamera support for Raspberry Pi
         Node(
-            package='v4l2_camera',
-            executable='v4l2_camera_node',
+            package='camera_ros',
+            executable='camera_ros_node',
             namespace='camera',
             parameters=[
                 '/shared/camera_params.yaml',
                 {
-                    'output_encoding': 'yuv422_yuy2',  # Output native YUYV without RGB conversion
-                    'camera_info_url': 'file:///shared/camera_info/unicam.yaml',  # Use our calibration file
+                    'camera_info_url': 'file:///shared/camera_info/unicam.yaml',
                 }
             ],
         ),
-        # Image transport node to republish as compressed JPEG only
-        # This subscribes to /camera/image_raw and republishes as /camera/image_raw/compressed
+        # Image transport node to republish as compressed JPEG
+        # This subscribes to /camera/image and republishes as /camera/image/compressed
         Node(
             package='image_transport',
             executable='republish',
             namespace='camera',
             remappings=[
-                ('in', 'image_raw'),
+                ('in', 'image'),
                 ('out', 'image_compressed'),
             ],
             arguments=['raw', 'compressed'],
