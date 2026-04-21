@@ -351,12 +351,32 @@ services:
       timeout: 5s
       retries: 3
 
-electromagnet_gpio:
+  electromagnet_gpio:
+      build:
+        context: .
+        dockerfile: Dockerfile.electromagnet
+      container_name: electromagnet-gpio
+      privileged: true
+      network_mode: host
+      volumes:
+        - ./shared:/shared
+        - ./docker_ws:/docker_ws
+      environment:
+        - ROS_DOMAIN_ID=0
+        - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+        - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      command:
+        - electromagnet_gpio
+        - bash
+        - -c
+        - ros2 launch electromagnet_gpio electromagnet.launch.py params_file:=/shared/eletro_params.yaml
+
+  # Factory autonomy - polls the competition server and sends Nav2 goals
+  factory_autonomy:
     build:
       context: .
-      dockerfile: Dockerfile.electromagnet
-    container_name: electromagnet-gpio
-    privileged: true
+      dockerfile: Dockerfile.autonomy
+    container_name: factory-autonomy
     network_mode: host
     volumes:
       - ./shared:/shared
@@ -365,12 +385,13 @@ electromagnet_gpio:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
+    depends_on:
+      - nav2_navigation
     command:
-      - electromagnet_gpio
+      - factory_autonomy
       - bash
       - -c
-      - ros2 launch electromagnet_gpio electromagnet.launch.py params_file:=/shared/eletro_params.yaml
-
+      - sleep 12 && ros2 launch factory_autonomy autonomy.launch.py params_file:=/shared/autonomy_params.yaml
 
   # ─────────────────────────────────────────────
   # RPi4 CAMERA
