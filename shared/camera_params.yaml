@@ -1,0 +1,43 @@
+# camera_params.yaml
+# -------------------
+# Parameters for the v4l2_camera node running on the RPi4.
+#
+# Tune image_size and framerate to balance quality vs network bandwidth —
+# raw frames at 1280x720@30fps over WiFi will saturate the link.
+# Use compressed_image_transport (see image_transport_hints below) to
+# send JPEG-compressed frames across the network instead of raw.
+
+v4l2_camera:
+  ros__parameters:
+
+    # ── Device ───────────────────────────────────────────────────────────────
+    # Check available devices on the RPi4 with: v4l2-ctl --list-devices
+    # Pi Camera Module via libcamera bridge is usually /dev/video0
+    # USB webcam may be /dev/video2 or higher if Pi Cam is also present
+    video_device: "/dev/video0"
+
+    # ── Frame ────────────────────────────────────────────────────────────────
+    camera_frame_id: "camera_link"
+
+    # ── Resolution & format ──────────────────────────────────────────────────
+    # Start conservative — increase once network bandwidth is confirmed stable.
+    # Pi Camera Module v2: max 1920x1080
+    # Pi Camera Module v3: max 4608x2592 (downscale heavily for ROS use)
+    image_size: [640, 480]
+    time_per_frame: [1, 15]     # 15 fps — [numerator, denominator]
+                                # reduce to [1, 5] if WiFi is congested
+
+    # Pixel format: YUYV works on nearly all cameras.
+    # Try MJPG if YUYV causes bandwidth issues — it compresses in-camera.
+    pixel_format: "YUYV"
+
+    # ── Camera info ──────────────────────────────────────────────────────────
+    # Path to calibration file produced by ros2 run camera_calibration
+    # Leave empty if uncalibrated — camera_info topic will have zero values
+    camera_info_url: "file:///shared/camera_calibration/camera.yaml"
+
+    # ── Output topics ────────────────────────────────────────────────────────
+    # Published topics (relative to node namespace):
+    #   /camera/image_raw                — raw frames
+    #   /camera/image_raw/compressed     — JPEG compressed (via image_transport)
+    #   /camera/camera_info              — calibration info

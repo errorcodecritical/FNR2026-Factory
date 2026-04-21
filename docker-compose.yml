@@ -352,6 +352,51 @@ services:
       retries: 3
 
   # ─────────────────────────────────────────────
+  # RPi4 CAMERA
+  # ─────────────────────────────────────────────
+  # Publishes compressed and raw frames from the Pi Camera or USB webcam.
+  #
+  # The device path is passed in at runtime — override with:
+  #   CAMERA_DEVICE=/dev/video2 docker compose up camera
+  #
+  # To avoid saturating WiFi, image_transport compressed output is used
+  # by default. Set pixel_format: MJPG in camera_params.yaml for further
+  # in-camera compression at the source.
+  #
+  # Check available devices on the RPi4 before starting:
+  #   v4l2-ctl --list-devices
+  # ─────────────────────────────────────────────
+  camera:
+    build:
+      context: .
+      dockerfile: Dockerfile.camera
+    container_name: rpi4-camera
+    privileged: true
+    network_mode: host
+    devices:
+      # Pass camera device through to container.
+      # Override with CAMERA_DEVICE env var if your device differs.
+      - ${CAMERA_DEVICE:-/dev/video0}:${CAMERA_DEVICE:-/dev/video0}
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+    stdin_open: true
+    tty: true
+    command:
+      - v4l2_camera
+      - bash
+      - -c
+      - >
+        ros2 run v4l2_camera v4l2_camera_node
+        --ros-args
+        --params-file /shared/camera_params.yaml
+        --remap __ns:=/camera
+
+  # ─────────────────────────────────────────────
   # VISUALIZATION
   # ─────────────────────────────────────────────
   # Profile: visualization (optional, add with --profile visualization)
