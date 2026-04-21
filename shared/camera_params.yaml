@@ -24,11 +24,11 @@ v4l2_camera:
     # Pi Camera Module v2: max 1920x1080
     # Pi Camera Module v3: max 4608x2592 (downscale heavily for ROS use)
     image_size: [640, 480]
-    time_per_frame: [1, 15]     # 15 fps — [numerator, denominator]
+    time_per_frame: [1, 5]     # 15 fps — [numerator, denominator]
                                 # reduce to [1, 5] if WiFi is congested
 
     # Pixel format: YUYV works on nearly all cameras.
-    # Try MJPG if YUYV causes bandwidth issues — it compresses in-camera.
+    # Use native format without color conversion
     pixel_format: "YUYV"
 
     # ── Camera info ──────────────────────────────────────────────────────────
@@ -36,8 +36,16 @@ v4l2_camera:
     # Leave empty if uncalibrated — camera_info topic will have zero values
     camera_info_url: "file:///shared/camera_info/unicam.yaml"
 
+    # ── Image transport ─────────────────────────────────────────────────────
+    # Use sensor QoS for best performance
+    use_sensor_data_qos: true
+
+  # ── JPEG Compression Settings ────────────────────────────────────────────
+  compressed_image_transport:
+    ros__parameters:
+      jpeg_quality: 80   # JPEG quality (1-100), higher = better quality, larger file size
+
     # ── Output topics ────────────────────────────────────────────────────────
-    # Published topics (relative to node namespace):
-    #   /camera/image_raw                — raw frames
-    #   /camera/image_raw/compressed     — JPEG compressed (via image_transport)
+    # With this configuration, only the compressed JPEG topic is published:
+    #   /camera/image_raw/compressed     — JPEG compressed (only output)
     #   /camera/camera_info              — calibration info

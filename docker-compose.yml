@@ -392,10 +392,7 @@ services:
       - bash
       - -c
       - >
-        ros2 run v4l2_camera v4l2_camera_node
-        --ros-args
-        --params-file /shared/camera_params.yaml
-        --remap __ns:=/camera
+        ros2 launch robot_description camera_compressed.launch.py
 
   # ─────────────────────────────────────────────
   # VISUALIZATION
