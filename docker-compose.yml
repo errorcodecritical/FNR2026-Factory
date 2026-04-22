@@ -351,57 +351,47 @@ services:
       timeout: 5s
       retries: 3
 
-  # ─────────────────────────────────────────────
-  # RPi4 CAMERA
-  # ─────────────────────────────────────────────
-  # Publishes compressed and raw frames from the Pi Camera or USB webcam.
-  #
-  # The device path is passed in at runtime — override with:
-  #   CAMERA_DEVICE=/dev/video2 docker compose up camera
-  #
-  # To avoid saturating WiFi, image_transport compressed output is used
-  # by default. Set pixel_format: MJPG in camera_params.yaml for further
-  # in-camera compression at the source.
-  #
-  # Check available devices on the RPi4 before starting:
-  #   v4l2-ctl --list-devices
-  # ─────────────────────────────────────────────
-  camera:
+  electromagnet_gpio:
+      build:
+        context: .
+        dockerfile: Dockerfile.electromagnet
+      container_name: electromagnet-gpio
+      privileged: true
+      network_mode: host
+      volumes:
+        - ./shared:/shared
+        - ./docker_ws:/docker_ws
+      environment:
+        - ROS_DOMAIN_ID=0
+        - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+        - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      command:
+        - electromagnet_gpio
+        - bash
+        - -c
+        - ros2 launch electromagnet_gpio electromagnet.launch.py params_file:=/shared/eletro_params.yaml
+
+  # Factory autonomy - polls the competition server and sends Nav2 goals
+  factory_autonomy:
     build:
       context: .
-      dockerfile: Dockerfile.camera
-    container_name: rpi4-camera
-    privileged: true
+      dockerfile: Dockerfile.autonomy
+    container_name: factory-autonomy
     network_mode: host
-    devices:
-      # Devices needed for libcamera access on Raspberry Pi
-      - /dev/mem:/dev/mem                    # Memory access for hardware
-      - /dev/vchiq:/dev/vchiq                # Raspberry Pi video core IPC
-      - /dev/video0:/dev/video0              # Camera device (ISP)
-      - /dev/video10:/dev/video10            # Camera device (ISP)
-      - /dev/video11:/dev/video11            # Camera device (ISP)
-      - /dev/video12:/dev/video12            # Camera device (ISP)
-      - /dev/video13:/dev/video13            # Camera device (ISP)
-      - /dev/video14:/dev/video14            # Camera device (ISP)
-      - /dev/video15:/dev/video15            # Camera device (ISP)
-      - /dev/video16:/dev/video16            # Camera device (ISP)
     volumes:
-      - /run/libcamera:/run/libcamera         # libcamera IPC sockets
       - ./shared:/shared
-      - ./shared/camera_info:/root/.ros/camera_info
       - ./docker_ws:/docker_ws
     environment:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    stdin_open: true
-    tty: true
+    depends_on:
+      - nav2_navigation
     command:
-      - camera_publisher
+      - factory_autonomy
       - bash
       - -c
-      - >
-        ros2 launch camera_publisher camera_compressed.launch.py
+      - sleep 12 && ros2 launch factory_autonomy autonomy.launch.py params_file:=/shared/autonomy_params.yaml
 
   # ─────────────────────────────────────────────
   # VISUALIZATION

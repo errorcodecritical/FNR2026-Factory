@@ -1,0 +1,8 @@
+electromagnet_gpio:
+  ros__parameters:
+    eletro_topic: "eletro"
+    # BCM numbering. Update this to the Raspberry Pi GPIO actually wired to the electromagnet.
+    gpio_pin: 13
+    active_high: true
+    initial_enabled: false
+    mock_gpio: false

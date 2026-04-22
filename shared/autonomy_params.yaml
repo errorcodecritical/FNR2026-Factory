@@ -1,0 +1,33 @@
+factory_autonomy:
+  ros__parameters:
+    # Set this to the competition server IP on the robot Wi-Fi network.
+    server_host: "127.0.0.1"
+    server_port: 5005
+    client_bind_host: "0.0.0.0"
+    client_bind_port: 0
+
+    udp_poll_hz: 20.0
+    tick_hz: 5.0
+    server_request_timeout_seconds: 0.5
+    server_request_retries: 3
+    start_request_period_seconds: 1.0
+    factory_refresh_period_seconds: 2.0
+    time_left_period_seconds: 10.0
+
+    waypoints_file: "/shared/factory_waypoints.yaml"
+    map_frame: "map"
+
+    nav_action_name: "navigate_to_pose"
+    nav_server_wait_seconds: 1.0
+    nav_retry_delay_seconds: 2.0
+    max_nav_retries: 1
+
+    pickup_pause_seconds: 2.0
+    dropoff_pause_seconds: 1.0
+    autostart: true
+
+    status_topic: "/factory_autonomy/status"
+    selected_goal_topic: "/factory_autonomy/selected_goal"
+    eletro_topic: "eletro"
+    status_period_seconds: 1.0
+
