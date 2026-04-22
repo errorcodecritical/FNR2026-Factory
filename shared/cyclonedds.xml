@@ -1,28 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CycloneDDS xmlns="https://cdds.io/config" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
-    <Domain id="any">
-        <General>
-            <Interfaces>
-                <NetworkInterface name="wlo1" multicast="true" />
-            </Interfaces>
-            <!-- Use 'spdp' to only use multicast for discovery, but unicast for data -->
-            <AllowMulticast>spdp</AllowMulticast> 
-        </General>
-        <Discovery>
-            <ParticipantIndex>auto</ParticipantIndex>
-            <MaxAutoParticipantIndex>20</MaxAutoParticipantIndex> <!-- Lowered from 100 -->
-            <!-- Send discovery heartbeats less often (default is 1s) -->
-            <SPDPInterval>5s</SPDPInterval>
-        </Discovery>
-        <Internal>
-            <!-- Limit the amount of unacknowledged data before slowing down -->
-            <Watermarks>
-                <WhcHigh>256kB</WhcHigh>
-            </Watermarks>
-        </Internal>
-        <Compatibility>
-            <!-- Don't send default QoS values to save discovery bytes -->
-            <ExplicitlyPublishQosSetToDefault>false</ExplicitlyPublishQosSetToDefault>
-        </Compatibility>
-    </Domain>
+<Domain id="any">
+  <General>
+    <Interfaces>
+      <NetworkInterface name="wlo1" multicast="true" />
+    </Interfaces>
+    <AllowMulticast>spdp</AllowMulticast>
+    <MaxMessageSize>65500B</MaxMessageSize>
+    <FragmentSize>1344B</FragmentSize>
+  </General>
+
+  <Discovery>
+    <ParticipantIndex>auto</ParticipantIndex>
+    <MaxAutoParticipantIndex>20</MaxAutoParticipantIndex>
+    <SPDPInterval>10s</SPDPInterval>
+    <!-- Replace with your ground station IP -->
+    <!-- <Peers><Peer address="192.168.x.x"/></Peers> -->
+  </Discovery>
+
+  <Internal>
+    <Watermarks>
+      <WhcHigh>500kB</WhcHigh>
+    </Watermarks>
+    <AckDelay>10ms</AckDelay>
+    <NackDelay>10ms</NackDelay>
+  </Internal>
+
+  <Compatibility>
+    <ExplicitlyPublishQosSetToDefault>false</ExplicitlyPublishQosSetToDefault>
+  </Compatibility>
+</Domain>
 </CycloneDDS>
