@@ -160,27 +160,6 @@ services:
   # FIRST-ORDER CONSUMERS
   # ─────────────────────────────────────────────
 
-  # RF2O Laser Odometry - provides odometry for SLAM
-  rf2o_odometry:
-    build:
-      context: .
-      dockerfile: Dockerfile.rf2o
-    container_name: rf2o-laser-odometry
-    privileged: true
-    network_mode: host
-    volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-    environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    command:
-      - rf2o_laser_odometry
-      - bash
-      - -c
-      - sleep 3 && ros2 run rf2o_laser_odometry rf2o_laser_odometry_node --ros-args --params-file /shared/rf2o_params.yaml
-
   # IMU Filter - filters raw IMU data
   imu_filter:
     build:
@@ -205,7 +184,7 @@ services:
   # SECOND-ORDER CONSUMERS
   # ─────────────────────────────────────────────
 
-  # EKF - fuses RF2O odometry and filtered IMU
+  # EKF - fuses wheel odometry and filtered IMU
   robot_localization:
     build:
       context: .

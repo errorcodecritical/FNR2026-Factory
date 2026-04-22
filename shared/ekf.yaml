@@ -16,31 +16,18 @@ ekf_filter_node:
     # map (SLAM) → odom (SLAM) → base_link (EKF)
 
     # ── Wheel odometry ──────────────────────────────────────────────────────
-    # Contributes: vx, vy (body-frame linear velocity) and vyaw.
-    # Position is intentionally excluded — wheel slip on mecanum makes
-    # absolute position from encoders unreliable; let rf2o own position.
+    # Contributes: x, y position, yaw heading, and velocities (vx, vy, vyaw).
+    # After removing rf2o, wheel odometry is now primary for position estimation.
+    # Mecanum wheel slip will cause some drift over time.
     odom0: odom_wheel
-    odom0_config: [false, false, false,   # x,  y,  z
-                   false, false, false,   # rx, ry, rz
+    odom0_config: [true,  true,  false,   # x,  y,  z
+                   false, false, true,    # rx, ry, rz (yaw)
                    true,  true,  false,   # vx, vy, vz
                    false, false, true,    # vrx,vry,vrz (vyaw)
                    false, false, false]   # ax, ay, az
     odom0_differential: false
     odom0_relative: false
     odom0_queue_size: 10
-
-    # ── Lidar odometry (rf2o) ────────────────────────────────────────────────
-    # Contributes: x, y position and yaw heading.
-    # rf2o is good at absolute pose but noisy on velocity — let wheels own vx/vy.
-    odom1: odom_rf2o
-    odom1_config: [true,  true,  false,   # x,  y,  z
-                   false, false, true,    # rx, ry, rz  (yaw)
-                   false, false, false,   # vx, vy, vz
-                   false, false, false,   # vrx,vry,vrz
-                   false, false, false]   # ax, ay, az
-    odom1_differential: false
-    odom1_relative: false
-    odom1_queue_size: 10
 
     # ── IMU (accelerometer + gyro) ───────────────────────────────────────────
     # Contributes: yaw rate and linear acceleration.
