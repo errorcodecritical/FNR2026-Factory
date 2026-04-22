@@ -17,13 +17,18 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/u
     /etc/apt/sources.list.d/ubuntu.sources
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # libcamera — core library for Raspberry Pi camera access
-    libcamera-dev \
+    # ROS2 packaged version of libcamera (has better version compatibility)
+    ros-${ROS_DISTRO}-libcamera \
+    # libcamera tools for debugging
     libcamera-tools \
+    libyaml-dev \
+    # Image format and processing libraries
+    libopencv-dev \
     # Image transport + common codecs
     ros-${ROS_DISTRO}-image-transport \
     ros-${ROS_DISTRO}-image-transport-plugins \
     ros-${ROS_DISTRO}-compressed-image-transport \
+    ros-${ROS_DISTRO}-cv-bridge \
     # Camera calibration support
     ros-${ROS_DISTRO}-camera-calibration-parsers \
     ros-${ROS_DISTRO}-camera-info-manager \

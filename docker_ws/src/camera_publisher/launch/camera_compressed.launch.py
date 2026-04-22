@@ -11,7 +11,7 @@ def generate_launch_description():
         # Start camera_ros node - native libcamera support for Raspberry Pi
         Node(
             package='camera_ros',
-            executable='camera_ros_node',
+            executable='camera_node',
             namespace='camera',
             parameters=[
                 '/shared/camera_params.yaml',

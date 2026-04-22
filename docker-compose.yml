@@ -373,11 +373,20 @@ services:
     container_name: rpi4-camera
     privileged: true
     network_mode: host
-    devices: []
-      # Pass camera device through to container.
-      # Override with CAMERA_DEVICE env var if your device differs.
+    devices:
+      # Devices needed for libcamera access on Raspberry Pi
+      - /dev/mem:/dev/mem                    # Memory access for hardware
+      - /dev/vchiq:/dev/vchiq                # Raspberry Pi video core IPC
+      - /dev/video0:/dev/video0              # Camera device (ISP)
+      - /dev/video10:/dev/video10            # Camera device (ISP)
+      - /dev/video11:/dev/video11            # Camera device (ISP)
+      - /dev/video12:/dev/video12            # Camera device (ISP)
+      - /dev/video13:/dev/video13            # Camera device (ISP)
+      - /dev/video14:/dev/video14            # Camera device (ISP)
+      - /dev/video15:/dev/video15            # Camera device (ISP)
+      - /dev/video16:/dev/video16            # Camera device (ISP)
     volumes:
-      - ${CAMERA_DEVICE:-/dev/video0}:${CAMERA_DEVICE:-/dev/video0}
+      - /run/libcamera:/run/libcamera         # libcamera IPC sockets
       - ./shared:/shared
       - ./shared/camera_info:/root/.ros/camera_info
       - ./docker_ws:/docker_ws
