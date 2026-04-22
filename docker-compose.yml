@@ -385,8 +385,6 @@ services:
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    depends_on:
-      - nav2_navigation
     command:
       - factory_autonomy
       - bash
