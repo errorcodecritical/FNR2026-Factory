@@ -31,10 +31,10 @@ services:
     command: "true"
     # This service only builds the base image, doesn't run as container
 
-  # ─────────────────────────────────────────────
-  # HARDWARE DRIVERS (Always running)
-  # ─────────────────────────────────────────────
-  # These are core drivers required for any robot operation
+    # ─────────────────────────────────────────────
+    # HARDWARE DRIVERS (Always running)
+    # ─────────────────────────────────────────────
+    # These are core drivers required for any robot operation
 
   rplidar:
     build:
@@ -239,7 +239,7 @@ services:
       - -c
       - sleep 5 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/shared/slam_configs/online_async.yaml use_sim_time:=false
     healthcheck:
-      test: ["CMD", "ros2", "topic", "hz", "/map"]
+      test: [ "CMD", "ros2", "topic", "hz", "/map" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -271,7 +271,7 @@ services:
       - -c
       - sleep 5 && ros2 launch slam_toolbox localization_launch.py slam_params_file:=/shared/slam_configs/localization.yaml use_sim_time:=false
     healthcheck:
-      test: ["CMD", "ros2", "topic", "hz", "/map"]
+      test: [ "CMD", "ros2", "topic", "hz", "/map" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -325,30 +325,30 @@ services:
       - -c
       - sleep 5 && ros2 launch nav2_bringup bringup_launch.py map:=${MAP_FILE}.yaml params_file:=/shared/nav2_params.yaml use_sim_time:=false
     healthcheck:
-      test: ["CMD", "ros2", "topic", "hz", "/cmd_vel"]
+      test: [ "CMD", "ros2", "topic", "hz", "/cmd_vel" ]
       interval: 10s
       timeout: 5s
       retries: 3
 
   electromagnet_gpio:
-      build:
-        context: .
-        dockerfile: Dockerfile.electromagnet
-      container_name: electromagnet-gpio
-      privileged: true
-      network_mode: host
-      volumes:
-        - ./shared:/shared
-        - ./docker_ws:/docker_ws
-      environment:
-        - ROS_DOMAIN_ID=0
-        - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-        - CYCLONEDDS_URI=/shared/cyclonedds.xml
-      command:
-        - electromagnet_gpio
-        - bash
-        - -c
-        - ros2 launch electromagnet_gpio electromagnet.launch.py params_file:=/shared/eletro_params.yaml
+    build:
+      context: .
+      dockerfile: Dockerfile.electromagnet
+    container_name: electromagnet-gpio
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+    command:
+      - electromagnet_gpio
+      - bash
+      - -c
+      - ros2 launch electromagnet_gpio electromagnet.launch.py params_file:=/shared/eletro_params.yaml
 
   # Factory autonomy - polls the competition server and sends Nav2 goals
   factory_autonomy:
@@ -370,6 +370,27 @@ services:
       - -c
       - sleep 12 && ros2 launch factory_autonomy autonomy.launch.py params_file:=/shared/autonomy_params.yaml
 
+  nav2:
+    build:
+      context: .
+      dockerfile: Dockerfile.nav2
+    container_name: nav2-navigation
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      - ROS_DOMAIN_ID=0
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+    stdin_open: true
+    tty: true
+    command:
+      - nav2_localization
+      - bash
+      - -c
+      - sleep 8 && ros2 launch nav2_localization nav2_localization.launch.py \ map:=/shared/maps/fnr26_map/fnr26_map.yaml \ params_file:=/shared/nav2_params.yaml \ use_sim_time:=false
   # ─────────────────────────────────────────────
   # VISUALIZATION
   # ─────────────────────────────────────────────
