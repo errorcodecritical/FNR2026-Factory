@@ -35,7 +35,7 @@ slam_toolbox:
     map_update_interval:      30.0
 
     # CHANGED: 0.2 → 0.05 — TF is tiny, publish it fast so nav stays smooth.
-    transform_publish_period: 0.05
+    transform_publish_period: 0.02
 
     # CHANGED: 0.2 → 0.5 — process a scan at most every 500ms.
     # Localization does not need 5Hz scan matching on an RPi4 over WiFi.
