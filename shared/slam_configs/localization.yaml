@@ -16,7 +16,7 @@ slam_toolbox:
     # ─────────────────────────────────────────────────────────────────────
     # MAP CONFIGURATION
     # ─────────────────────────────────────────────────────────────────────
-    map_file_name: /shared/maps/fnr26_map/fnr26_map
+    map_file_name: /shared/maps/fnr26_map_edited/fnr26_map_edited
     map_start_at_dock: false
     map_start_pose: [0.0, 0.0, 0.0]
 
@@ -30,7 +30,7 @@ slam_toolbox:
     # UPDATE PARAMETERS (Optimized for Small Space)
     # ─────────────────────────────────────────────────────────────────────
     # Re-publish map very rarely since it is static in localization mode.
-    map_update_interval:      60.0
+    map_update_interval:      10.0
 
     # Publish TF at 50Hz to ensure Nav2 controllers have smooth data.
     transform_publish_period: 0.02

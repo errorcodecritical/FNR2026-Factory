@@ -13,4 +13,4 @@ cd "$(dirname "$0")"
 
 echo "Starting up ROS2 Jazzy containers for FNR26 Factory..."
 
-docker compose up -d publisher electromagnet_gpio rplidar mecanum_driver minimu9_publisher imu_filter slam_localization robot_localization teleop
+docker compose up -d publisher electromagnet_gpio rplidar mecanum_driver minimu9_publisher imu_filter slam_localization robot_localization teleop electromagnet_gpio
