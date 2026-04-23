@@ -5,7 +5,6 @@ ekf_filter_node:
     two_d_mode: true
     print_diagnostics: true
     publish_tf: true
-    print_diagnostics: true
 
     # map_frame: map              # Map frame (used by SLAM for map → odom)
     odom_frame: odom            # Odometry frame (EKF publishes odom → base_link)

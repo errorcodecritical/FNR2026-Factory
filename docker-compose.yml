@@ -199,10 +199,10 @@ services:
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - CYCLONEDDS_URI=/shared/cyclonedds.xml
     command:
-      - robot_localization
+      - ekf_launch
       - bash
       - -c
-      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
+      - sleep 5 && ros2 launch ekf_launch ekf.launch.py params_file:=/shared/ekf.yaml
 
   # ─────────────────────────────────────────────
   # SLAM & MAPPING SYSTEM
