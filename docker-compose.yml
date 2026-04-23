@@ -202,7 +202,7 @@ services:
       - ekf_launch
       - bash
       - -c
-      - sleep 5 && ros2 run robot_localization ekf_launch --ros-args --params-file /shared/ekf.yaml
+      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
 
   # ─────────────────────────────────────────────
   # SLAM & MAPPING SYSTEM
