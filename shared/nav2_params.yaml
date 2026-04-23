@@ -127,7 +127,7 @@ controller_server:
         cost_weight: 3.81
         critical_cost: 300.0
         consider_footprint: false
-        collision_cost: 1000000.0
+        collision_cost: 1000.0
         near_goal_distance: 1.0
       PathAlignCritic:
         enabled: true
@@ -185,8 +185,8 @@ local_costmap:
         marking: true
     inflation_layer:
       plugin: "nav2_costmap_2d::InflationLayer"
-      inflation_radius: 0.30
-      cost_scaling_factor: 3.0
+      inflation_radius: 0.15
+      cost_scaling_factor: 1.0
     always_send_full_costmap: true
 
 global_costmap:
@@ -205,8 +205,8 @@ global_costmap:
       map_subscribe_transient_local: true
     inflation_layer:
       plugin: "nav2_costmap_2d::InflationLayer"
-      inflation_radius: 0.30
-      cost_scaling_factor: 3.0
+      inflation_radius: 0.15
+      cost_scaling_factor: 1.0
     always_send_full_costmap: true
 
 collision_monitor:
@@ -226,7 +226,7 @@ collision_monitor:
       type: "polygon"
       action_type: "approach"
       footprint_topic: "/local_costmap/published_footprint"
-      time_before_collision: 1.2
+      time_before_collision: 0.5
       simulation_time_step: 0.1
       min_points: 6
       visualize: false

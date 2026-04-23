@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+cd "$(dirname "$0")"
+
 # Startup script to initialize docker containers for each package, from the list:
 
 # base                mecanum_driver      rplidar
