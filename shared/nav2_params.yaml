@@ -258,8 +258,8 @@ lifecycle_manager:
     use_sim_time: false
     autostart: true
     node_names:
-      - map_server
-      - amcl
+      # - map_server
+      # - amcl
       - planner_server
       - controller_server
       - bt_navigator

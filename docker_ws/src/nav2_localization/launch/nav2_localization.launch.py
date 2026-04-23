@@ -72,8 +72,8 @@ def generate_launch_description():
 
     # ── Shared arguments used by every node ───────────────────────────────────
     lifecycle_nodes = [
-        "map_server",
-        "amcl",
+        # "map_server",
+        # "amcl",
         "planner_server",
         "controller_server",
         "bt_navigator",
@@ -230,8 +230,8 @@ def generate_launch_description():
         log_level_arg,
 
         # Nodes
-        map_server,
-        amcl,
+        # map_server,
+        # amcl,
         planner_server,
         controller_server,
         bt_navigator,

@@ -11,64 +11,61 @@ slam_toolbox:
     base_frame:  base_link
 
     publish_tf:  true
-    mode:        localization
+    mode:        localization # Crucial: uses map_file_name for localization
 
     # ─────────────────────────────────────────────────────────────────────
     # MAP CONFIGURATION
     # ─────────────────────────────────────────────────────────────────────
     map_file_name: /shared/maps/fnr26_map/fnr26_map
-
     map_start_at_dock: false
     map_start_pose: [0.0, 0.0, 0.0]
 
     # ─────────────────────────────────────────────────────────────────────
-    # RESOLUTION
+    # RESOLUTION & RANGE
     # ─────────────────────────────────────────────────────────────────────
-    resolution:       0.01
-    max_laser_range:  3.5
+    resolution:       0.01  # 1cm resolution is ideal for 2x2m
+    max_laser_range:  3.5   # Matches your LiDAR hardware limit
 
     # ─────────────────────────────────────────────────────────────────────
-    # UPDATE PARAMETERS
+    # UPDATE PARAMETERS (Optimized for Small Space)
     # ─────────────────────────────────────────────────────────────────────
-    # CHANGED: 5s → 30s — map is static in localization mode, no need to
-    # re-broadcast a large occupancy grid every 5 seconds over WiFi.
-    map_update_interval:      30.0
+    # Re-publish map very rarely since it is static in localization mode.
+    map_update_interval:      60.0
 
-    # CHANGED: 0.2 → 0.05 — TF is tiny, publish it fast so nav stays smooth.
+    # Publish TF at 50Hz to ensure Nav2 controllers have smooth data.
     transform_publish_period: 0.02
 
-    # CHANGED: 0.2 → 0.5 — process a scan at most every 500ms.
-    # Localization does not need 5Hz scan matching on an RPi4 over WiFi.
-    minimum_time_interval:    0.5
-
-    # CHANGED: tightened travel thresholds so scans are only processed when
-    # the robot has actually moved meaningfully — reduces idle CPU+DDS load.
-    minimum_travel_distance:  0.05   # was 0.01 — too sensitive, fires constantly
-    minimum_travel_heading:   0.05   # was 0.01
+    # In a 2x2m box, we need high-frequency updates.
+    minimum_time_interval:    0.1   # Process scans at 10Hz
+    throttle_scans:           1     # Do not skip scans; use every data point
+    
+    # Update the map-to-odom transform for even tiny movements.
+    minimum_travel_distance:  0.01  
+    minimum_travel_heading:   0.02
 
     # ─────────────────────────────────────────────────────────────────────
-    # SCAN MATCHING
+    # SCAN MATCHING (High Precision Tuning)
     # ─────────────────────────────────────────────────────────────────────
     use_scan_matching:   true
     use_scan_barycenter: true
 
-    # CHANGED: 200 → 10 — a 200-scan buffer is a mapping config value.
-    # In localization you only need recent scans for correlation; a large
-    # buffer wastes RAM and slows the solver on every match cycle.
-    scan_buffer_size:                  10
+    # Keep a small buffer of recent scans to maintain CPU efficiency.
+    scan_buffer_size:                  15
     scan_buffer_maximum_scan_distance: 3.5
 
-    correlation_search_space_dimension:       1.5
+    # Tiny search space: in a 2x2m room, we shouldn't search more than 0.5m away.
+    correlation_search_space_dimension:       0.5
     correlation_search_space_resolution:      0.005
-    correlation_search_space_smear_deviation: 0.05
+    correlation_search_space_smear_deviation: 0.02  # Sharper match for clear walls
 
-    link_match_minimum_response_fine: 0.55
+    # High threshold: only accept very "sure" matches to prevent spazzing.
+    link_match_minimum_response_fine: 0.75
     link_scan_maximum_distance:       1.0
 
-    do_loop_closing: false
+    do_loop_closing: false # Not needed for 2x2m localization
 
     # ─────────────────────────────────────────────────────────────────────
-    # SOLVER
+    # SOLVER (Ceres is best for RPi4)
     # ─────────────────────────────────────────────────────────────────────
     solver_plugin:        solver_plugins::CeresSolver
     ceres_linear_solver:  SPARSE_NORMAL_CHOLESKY
@@ -79,14 +76,8 @@ slam_toolbox:
     stack_size_to_use:    40000000
 
     # ─────────────────────────────────────────────────────────────────────
-    # TIMING
+    # TIMING & SYSTEM
     # ─────────────────────────────────────────────────────────────────────
     debug_logging:      false
-
-    # CHANGED: 1 → 3 — only process every 3rd scan from the LiDAR.
-    # At typical RPLidar rates (10Hz) this gives you ~3Hz scan matching,
-    # which is plenty for localization and cuts DDS + CPU load by 3x.
-    throttle_scans:     3
-
-    transform_timeout:  0.5
-    tf_buffer_duration: 30.0   # CHANGED: 60s → 30s — halves TF buffer memory on RPi4
+    transform_timeout:  0.2
+    tf_buffer_duration: 10.0   # Reduced to save RAM on RPi4
