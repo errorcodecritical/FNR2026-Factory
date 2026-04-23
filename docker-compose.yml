@@ -1,27 +1,29 @@
 version: '3.8'
 
-# Docker Compose Profiles for different operation modes:
-# - default: All hardware and basic localization stack (no SLAM)
-# - slam_mapping: Active mapping mode (builds new maps)
-# - slam_localization: Use pre-built maps for localization only
-# - map_save: Save current map to disk
-# - nav2_navigation: Autonomous navigation with Nav2 stack
-# - visualization: Add RViz visualization
+# Docker Compose Profiles:
+#
+#   (default)            Hardware drivers + EKF + IMU filter always run
+#   slam_mapping         Cartographer online mapping (builds new .pbstream + pgm/yaml map)
+#   slam_localization    Cartographer localisation against a saved .pbstream
+#   map_save             Save occupancy grid from Cartographer to pgm/yaml
+#   nav2_navigation      Autonomous navigation with custom Nav2 stack
+#   visualization        RViz2
 #
 # Usage:
-#   docker compose up                              # Default (drivers + processing)
-#   docker compose --profile slam_mapping up       # With active SLAM mapping
-#   docker compose --profile slam_localization up  # With localization mode
-#   docker compose --profile map_save up           # Save the current map
-#   docker compose --profile nav2_navigation up    # With Nav2 autonomous navigation
-#   docker compose --profile visualization up      # Add RViz visualization
+#   docker compose up                                   # drivers only
+#   docker compose --profile slam_mapping up            # build a new map
+#   docker compose --profile slam_localization up       # localise in known map
+#   docker compose --profile map_save up                # save map to disk
+#   docker compose --profile nav2_navigation up         # autonomous navigation
+#   docker compose --profile visualization up           # add RViz
+
+# ── Shared environment fragment ───────────────────────────────────────────────
 
 services:
 
-  # ─────────────────────────────────────────────
+  # ───────────────────────────────────────────────────────────────────────────
   # BASE IMAGE (build only)
-  # ─────────────────────────────────────────────
-
+  # ───────────────────────────────────────────────────────────────────────────
   base:
     build:
       context: .
@@ -29,13 +31,10 @@ services:
     container_name: fnr26factory-base
     image: fnr26factory-base:latest
     command: "true"
-    # This service only builds the base image, doesn't run as container
 
-    # ─────────────────────────────────────────────
-    # HARDWARE DRIVERS (Always running)
-    # ─────────────────────────────────────────────
-    # These are core drivers required for any robot operation
-
+  # ───────────────────────────────────────────────────────────────────────────
+  # HARDWARE DRIVERS  (always running)
+  # ───────────────────────────────────────────────────────────────────────────
   rplidar:
     build:
       context: .
@@ -50,17 +49,24 @@ services:
       - ./docker_ws:/docker_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
-      - DISPLAY=${DISPLAY}
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+      DISPLAY: ${DISPLAY}
     stdin_open: true
     tty: true
     command:
       - rplidar_ros
       - bash
       - -c
-      - ros2 run rplidar_ros rplidar_composition --ros-args --remap __node:=rplidar_node -p rplidar_node:serial_port:="/dev/ttyUSB_CP210X" -p rplidar_node:serial_baudrate:=115200 -p rplidar_node:frame_id:="lidar_link" -p rplidar_node:inverted:=false -p rplidar_node:angle_compensate:=true
+      - >
+        ros2 run rplidar_ros rplidar_composition --ros-args
+        --remap __node:=rplidar_node
+        -p rplidar_node:serial_port:="/dev/ttyUSB_CP210X"
+        -p rplidar_node:serial_baudrate:=115200
+        -p rplidar_node:frame_id:="lidar_link"
+        -p rplidar_node:inverted:=false
+        -p rplidar_node:angle_compensate:=true
 
   minimu9_publisher:
     build:
@@ -75,9 +81,9 @@ services:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
     environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
     command:
       - minimu9_publisher
       - bash
@@ -97,9 +103,9 @@ services:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
     environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
     command:
       - mecanum_driver
       - bash
@@ -118,9 +124,9 @@ services:
       - ./docker_ws:/docker_ws
       - /dev/input:/dev/input:rw
     environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
     stdin_open: true
     tty: true
     command:
@@ -129,7 +135,6 @@ services:
       - -c
       - ros2 launch teleop_twist_joy teleop-launch.py config_filepath:=/shared/teleop_params.yaml
 
-  # robot_state_publisher - publishes TF from URDF
   publisher:
     build:
       context: .
@@ -144,191 +149,17 @@ services:
       - ./docker_ws:/docker_ws
       - /tmp/.X11-unix:/tmp/.X11-unix
     environment:
-      - PYTHONUNBUFFERED=1
-      - DISPLAY=${DISPLAY}
-      - QT_X11_NO_MITSHM=1
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+      DISPLAY: ${DISPLAY}
+      PYTHONUNBUFFERED: 1
+      QT_X11_NO_MITSHM: 1
     command:
       - robot_description
       - bash
       - -c
       - ros2 launch robot_description robot_state_publisher.launch.py
-
-  # ─────────────────────────────────────────────
-  # FIRST-ORDER CONSUMERS
-  # ─────────────────────────────────────────────
-
-  # IMU Filter - filters raw IMU data
-  imu_filter:
-    build:
-      context: .
-      dockerfile: Dockerfile.localization
-    container_name: imu-filter
-    network_mode: host
-    volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-    environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    command:
-      - imu_filter_madgwick
-      - bash
-      - -c
-      - sleep 3 && ros2 run imu_filter_madgwick imu_filter_madgwick_node --ros-args --params-file /shared/imu_filter_madgwick.yaml
-
-  # ─────────────────────────────────────────────
-  # SECOND-ORDER CONSUMERS
-  # ─────────────────────────────────────────────
-
-  # EKF - fuses wheel odometry and filtered IMU
-  robot_localization:
-    build:
-      context: .
-      dockerfile: Dockerfile.localization
-    container_name: robot-localization-ekf
-    network_mode: host
-    volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-    environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    command:
-      - ekf_launch
-      - bash
-      - -c
-      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
-
-  # ─────────────────────────────────────────────
-  # SLAM & MAPPING SYSTEM
-  # ─────────────────────────────────────────────
-  # Profiles:
-  #   slam_mapping: Active mapping mode (online_async)
-  #   slam_localization: Localization in known map
-  #   map_save: Save current map to disk
-  #   visualization: Add RViz visualization
-  # ─────────────────────────────────────────────
-  # SLAM Mapping Service - Online Async Mode
-  slam_mapping:
-    build:
-      context: .
-      dockerfile: Dockerfile.slam
-    container_name: fnr26-slam-mapping
-    privileged: true
-    network_mode: host
-    volumes:
-      - ./config:/root/nav2_ws/config
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    environment:
-      - DISPLAY=${DISPLAY}
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    stdin_open: true
-    tty: true
-    command:
-      - slam_toolbox
-      - bash
-      - -c
-      - sleep 5 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/shared/slam_configs/online_async.yaml use_sim_time:=false
-    healthcheck:
-      test: [ "CMD", "ros2", "topic", "hz", "/map" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # SLAM Localization Service - Localization Mode
-  # Profile: slam_localization
-  # Uses pre-built maps for localization only
-  slam_localization:
-    build:
-      context: .
-      dockerfile: Dockerfile.slam
-    container_name: fnr26-slam-localization
-    privileged: true
-    network_mode: host
-    volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    environment:
-      - DISPLAY=${DISPLAY}
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    stdin_open: true
-    tty: true
-    command:
-      - slam_toolbox
-      - bash
-      - -c
-      - sleep 5 && ros2 launch slam_toolbox localization_launch.py slam_params_file:=/shared/slam_configs/localization.yaml use_sim_time:=false
-    healthcheck:
-      test: [ "CMD", "ros2", "topic", "hz", "/map" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Map Saver Service - Saves current SLAM map to disk
-  # Profile: map_save
-  # Usage: docker-compose --profile map_save run map_saver
-  map_saver:
-    build:
-      context: .
-      dockerfile: Dockerfile.slam
-    container_name: fnr26-slam-map-saver
-    network_mode: host
-    volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-    environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    stdin_open: true
-    tty: true
-    command: bash /shared/save_map.sh
-
-  # Nav2 Navigation Service - Autonomous navigation using pre-built maps
-  # Profile: nav2_navigation
-  # Depends on: rplidar, robot_localization, publisher
-  nav2_navigator:
-    build:
-      context: .
-      dockerfile: Dockerfile.nav2
-    container_name: fnr26-nav2-navigator
-    privileged: true
-    network_mode: host
-    volumes:
-      - ./config:/root/nav2_ws/config
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    environment:
-      - DISPLAY=${DISPLAY}
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
-      - MAP_FILE=${MAP_FILE:-/shared/maps/fnr26_map}
-    stdin_open: true
-    tty: true
-    command:
-      - nav2_bringup
-      - bash
-      - -c
-      - sleep 5 && ros2 launch nav2_bringup bringup_launch.py map:=${MAP_FILE}.yaml params_file:=/shared/nav2_params.yaml use_sim_time:=false
-    healthcheck:
-      test: [ "CMD", "ros2", "topic", "hz", "/cmd_vel" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
   electromagnet_gpio:
     build:
@@ -341,16 +172,229 @@ services:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
     environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
     command:
       - electromagnet_gpio
       - bash
       - -c
       - ros2 launch electromagnet_gpio electromagnet.launch.py params_file:=/shared/eletro_params.yaml
 
-  # Factory autonomy - polls the competition server and sends Nav2 goals
+  # ───────────────────────────────────────────────────────────────────────────
+  # FIRST-ORDER CONSUMERS
+  # ───────────────────────────────────────────────────────────────────────────
+  imu_filter:
+    build:
+      context: .
+      dockerfile: Dockerfile.localization
+    container_name: imu-filter
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+    command:
+      - imu_filter_madgwick
+      - bash
+      - -c
+      - sleep 3 && ros2 run imu_filter_madgwick imu_filter_madgwick_node --ros-args --params-file /shared/imu_filter_madgwick.yaml
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # SECOND-ORDER CONSUMERS
+  # ───────────────────────────────────────────────────────────────────────────
+  robot_localization:
+    build:
+      context: .
+      dockerfile: Dockerfile.localization
+    container_name: robot-localization-ekf
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+    command:
+      - ekf_launch
+      - bash
+      - -c
+      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # CARTOGRAPHER — SLAM MAPPING
+  # Profile: slam_mapping
+  # Builds a new map and saves it as a .pbstream for later localisation.
+  # While running, publishes /map for RViz and Nav2.
+  # When done: docker compose --profile map_save up map_saver
+  # ───────────────────────────────────────────────────────────────────────────
+  slam_mapping:
+    build:
+      context: .
+      dockerfile: Dockerfile.cartographer
+    container_name: fnr26-cartographer-mapping
+    profiles: [slam_mapping]
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+      DISPLAY: ${DISPLAY}
+    stdin_open: true
+    tty: true
+    command:
+      - cartographer_ros
+      - bash
+      - -c
+      - |
+        sleep 6 && ros2 launch cartographer_ros cartographer.launch.py \
+          configuration_directory:=/shared/cartographer_configs \
+          configuration_basename:=mapping.lua \
+          use_sim_time:=false \
+          scan_topic:=/scan \
+          odom_topic:=/odometry/filtered
+    healthcheck:
+      test: ["CMD", "ros2", "topic", "hz", "/map"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # CARTOGRAPHER — LOCALISATION ONLY
+  # Profile: slam_localization
+  # Loads a saved .pbstream and localises the robot within that map.
+  # Publishes map→odom TF — do NOT run AMCL alongside this.
+  # ───────────────────────────────────────────────────────────────────────────
+  slam_localization:
+    build:
+      context: .
+      dockerfile: Dockerfile.cartographer
+    container_name: fnr26-cartographer-localization
+    profiles: [slam_localization]
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+      DISPLAY: ${DISPLAY}
+    stdin_open: true
+    tty: true
+    command:
+      - cartographer_ros
+      - bash
+      - -c
+      - |
+        sleep 6 && ros2 launch cartographer_ros cartographer.launch.py \
+          configuration_directory:=/shared/cartographer_configs \
+          configuration_basename:=localization.lua \
+          use_sim_time:=false \
+          scan_topic:=/scan \
+          odom_topic:=/odometry/filtered \
+          load_state_filename:=/shared/maps/fnr26_map/fnr26_map.pbstream \
+          load_frozen_state:=true
+    healthcheck:
+      test: ["CMD", "ros2", "topic", "hz", "/map"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # MAP SAVER
+  # Profile: map_save
+  # Saves the current Cartographer occupancy grid to pgm + yaml.
+  # Run after slam_mapping has built a complete map.
+  # Also triggers Cartographer to serialise the .pbstream for localisation.
+  # ───────────────────────────────────────────────────────────────────────────
+  map_saver:
+    build:
+      context: .
+      dockerfile: Dockerfile.cartographer
+    container_name: fnr26-map-saver
+    profiles: [map_save]
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+    command:
+      - cartographer_ros
+      - bash
+      - -c
+      - |
+        sleep 3
+        mkdir -p /shared/maps/fnr26_map
+
+        # Save occupancy grid (pgm + yaml) for Nav2 map_server
+        ros2 run nav2_map_server map_saver_cli \
+          -f /shared/maps/fnr26_map/fnr26_map \
+          --ros-args -p save_map_timeout:=10.0
+
+        # Serialise Cartographer state to .pbstream for future localisation
+        ros2 service call /write_state \
+          cartographer_ros_msgs/srv/WriteState \
+          "{filename: '/shared/maps/fnr26_map/fnr26_map.pbstream', include_unfinished_submaps: true}"
+
+        echo "Map saved to /shared/maps/fnr26_map/"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # NAV2 NAVIGATION
+  # Profile: nav2_navigation
+  # Uses the custom nav2_localization launch (replaces nav2_bringup).
+  # Run alongside slam_localization (Cartographer provides map→odom TF).
+  # AMCL is disabled — Cartographer handles localisation.
+  # ───────────────────────────────────────────────────────────────────────────
+  nav2:
+    build:
+      context: .
+      dockerfile: Dockerfile.nav2
+    container_name: nav2-navigation
+    profiles: [nav2_navigation]
+    privileged: true
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+    stdin_open: true
+    tty: true
+    command:
+      - nav2_localization
+      - bash
+      - -c
+      - |
+        sleep 8 && ros2 launch nav2_localization nav2_localization.launch.py \
+          map:=/shared/maps/fnr26_map/fnr26_map.yaml \
+          params_file:=/shared/nav2_params.yaml \
+          use_sim_time:=false
+    healthcheck:
+      test: ["CMD", "ros2", "topic", "hz", "/cmd_vel"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # FACTORY AUTONOMY
+  # ───────────────────────────────────────────────────────────────────────────
   factory_autonomy:
     build:
       context: .
@@ -361,46 +405,25 @@ services:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
     environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
     command:
       - factory_autonomy
       - bash
       - -c
       - sleep 12 && ros2 launch factory_autonomy autonomy.launch.py params_file:=/shared/autonomy_params.yaml
 
-  nav2:
-    build:
-      context: .
-      dockerfile: Dockerfile.nav2
-    container_name: nav2-navigation
-    privileged: true
-    network_mode: host
-    volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-    environment:
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
-    stdin_open: true
-    tty: true
-    command:
-      - nav2_localization
-      - bash
-      - -c
-      - sleep 8 && ros2 launch nav2_localization nav2_localization.launch.py \ map:=/shared/maps/fnr26_map/fnr26_map.yaml \ params_file:=/shared/nav2_params.yaml \ use_sim_time:=false
-  # ─────────────────────────────────────────────
+  # ───────────────────────────────────────────────────────────────────────────
   # VISUALIZATION
-  # ─────────────────────────────────────────────
-  # Profile: visualization (optional, add with --profile visualization)
-
+  # Profile: visualization
+  # ───────────────────────────────────────────────────────────────────────────
   rviz2:
     build:
       context: .
       dockerfile: Dockerfile.rviz
     container_name: rviz2-visualization
+    profiles: [visualization]
     privileged: true
     network_mode: host
     volumes:
@@ -408,11 +431,11 @@ services:
       - ./docker_ws:/docker_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
-      - DISPLAY=${DISPLAY}
-      - QT_X11_NO_MITSHM=1
-      - ROS_DOMAIN_ID=0
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      - CYCLONEDDS_URI=/shared/cyclonedds.xml
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: 1
     stdin_open: true
     tty: true
     command:
