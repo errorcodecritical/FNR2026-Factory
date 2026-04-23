@@ -53,31 +53,49 @@ STATE_DROPOFF_PAUSE = 'dropoff_pause'
 
 @dataclass
 class PendingServerRequest:
+    """Track the one UDP request that may be in flight at a time.
+
+    The competition protocol does not include request ids, so the node keeps
+    the interaction strictly serialized: send one request, wait for the
+    matching response, then send the next request.
+    """
+
     code: str
     attempts: int
     deadline: float
 
 
 class FactoryAutonomyNode(Node):
+    """ROS 2 node that bridges three concerns:
+
+    1. Poll the competition UDP server for factory state.
+    2. Ask the planner which transport should happen next.
+    3. Dispatch pickup/drop-off goals to Nav2 and toggle the electromagnet.
+    """
+
     def __init__(self):
         super().__init__('factory_autonomy')
 
         self._declare_params()
         self._load_params()
 
+        # Static collaborators loaded once at startup.
         self._waypoints = self._load_waypoints()
         self._planner = FactoryPlanner()
         self._snapshot = FactorySnapshot()
         self._eletro_qos = _latched_bool_qos()
 
+        # ROS interfaces for navigation, status, and the electromagnet output.
         self._nav_client = ActionClient(self, NavigateToPose, self._nav_action_name)
         self._status_pub = self.create_publisher(String, self._status_topic, 10)
         self._goal_pub = self.create_publisher(PoseStamped, self._selected_goal_topic, 10)
         self._eletro_pub = self.create_publisher(Bool, self._eletro_topic, self._eletro_qos)
 
+        # Raw UDP transport used by the competition protocol.
         self._udp_sock = self._open_udp_socket()
         self._server_address = (self._server_host, self._server_port)
 
+        # Global run state.
         self._enabled = self._autostart
         self._competition_started = False
         self._state = STATE_WAITING_FOR_START
@@ -88,9 +106,11 @@ class FactoryAutonomyNode(Node):
         self._next_start_request_time = 0.0
         self._competition_time_left: Optional[int] = None
 
+        # UDP request bookkeeping.
         self._pending_request: Optional[PendingServerRequest] = None
         self._refresh_queue: List[str] = []
 
+        # Navigation/task bookkeeping.
         self._current_task: Optional[TransportTask] = None
         self._current_leg: Optional[str] = None
         self._goal_handle = None
@@ -100,6 +120,9 @@ class FactoryAutonomyNode(Node):
         self._nav_attempts = 0
         self._last_feedback_distance: Optional[float] = None
 
+        # The node is driven by two lightweight loops:
+        # - a fast UDP poller that only receives/parses packets
+        # - a slower state-machine tick that decides what to do next
         self.create_timer(1.0 / self._udp_poll_hz, self._poll_udp)
         self.create_timer(1.0 / self._tick_hz, self._tick)
 
@@ -119,6 +142,7 @@ class FactoryAutonomyNode(Node):
             super().destroy_node()
 
     def _declare_params(self) -> None:
+        """Declare ROS parameters and their default values."""
         self.declare_parameter('server_host', '127.0.0.1')
         self.declare_parameter('server_port', 5005)
         self.declare_parameter('client_bind_host', '0.0.0.0')
@@ -145,6 +169,7 @@ class FactoryAutonomyNode(Node):
         self.declare_parameter('status_period_seconds', 1.0)
 
     def _load_params(self) -> None:
+        """Read declared ROS parameters into plain Python attributes."""
         get = self.get_parameter
         self._server_host = str(get('server_host').value)
         self._server_port = int(get('server_port').value)
@@ -172,9 +197,10 @@ class FactoryAutonomyNode(Node):
         self._status_period_seconds = float(get('status_period_seconds').value)
 
     def _load_waypoints(self) -> WaypointStore:
-        return load_waypoints_file(self._waypoints_file, default_frame=self._map_frame)
+        return load_waypoints_file(self._waypoints_file)
 
     def _open_udp_socket(self) -> socket.socket:
+        """Create a non-blocking UDP socket for the competition server."""
         udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         udp_sock.bind((self._client_bind_host, self._client_bind_port))
@@ -182,6 +208,12 @@ class FactoryAutonomyNode(Node):
         return udp_sock
 
     def _poll_udp(self) -> None:
+        """Drain all currently available UDP packets.
+
+        This method never decides what should happen next. Its job is only to
+        receive data, validate that it matches the outstanding request, and
+        hand the parsed response to the state machine.
+        """
         while True:
             try:
                 payload, address = self._udp_sock.recvfrom(4096)
@@ -192,6 +224,8 @@ class FactoryAutonomyNode(Node):
                 break
 
             if self._pending_request is None:
+                # Without an outstanding request we cannot safely correlate the
+                # packet to any expected response, so ignore it.
                 self.get_logger().debug(f'Ignoring unsolicited UDP packet from {address}: {payload!r}')
                 continue
 
@@ -208,28 +242,37 @@ class FactoryAutonomyNode(Node):
             self._handle_server_response(request_code, response)
 
     def _tick(self) -> None:
+        """Advance the high-level autonomy state machine by one step."""
         now = time.time()
         self._handle_request_timeout(now)
 
         if self._state == STATE_WAITING_FOR_START:
+            # Before the run starts, repeatedly ask for incoming parts. A
+            # non-STOP response doubles as the "start" signal in this protocol.
             if self._enabled and self._pending_request is None and now >= self._next_start_request_time:
                 self._send_server_request(REQUEST_INCOMING)
 
         elif self._state == STATE_IDLE and self._enabled:
+            # When idle, first refresh stale factory state, otherwise try to
+            # dispatch the next movement.
             if self._pending_request is None and now - self._last_refresh_time >= self._refresh_period:
                 self._start_factory_refresh()
             elif self._pending_request is None:
                 self._dispatch_next_task()
 
         elif self._state == STATE_PICKUP_PAUSE and self._pause_until is not None:
+            # The robot simulates the pickup dwell time before driving away.
             if now >= self._pause_until and self._current_task is not None:
                 self._send_navigation_goal(self._current_task.dropoff_waypoint, leg='dropoff')
 
         elif self._state == STATE_DROPOFF_PAUSE and self._pause_until is not None:
+            # After the drop-off dwell time, commit the move in the local model.
             if now >= self._pause_until:
                 self._finish_current_task()
 
         elif self._state == STATE_WAITING_FOR_NAV2 and now >= self._next_dispatch_time:
+            # Re-attempt goal dispatch after a short backoff while waiting for
+            # Nav2 or retrying after a failed goal attempt.
             if self._current_task is not None and self._current_leg is not None:
                 waypoint = (
                     self._current_task.pickup_waypoint
@@ -241,6 +284,7 @@ class FactoryAutonomyNode(Node):
         self._publish_status()
 
     def _send_server_request(self, code: str) -> None:
+        """Send one competition-server request if no other request is pending."""
         if self._pending_request is not None:
             return
 
@@ -259,6 +303,7 @@ class FactoryAutonomyNode(Node):
         self._last_event = f'sent server request {code}'
 
     def _handle_request_timeout(self, now: float) -> None:
+        """Retry or abandon the current UDP request when its deadline expires."""
         if self._pending_request is None or now < self._pending_request.deadline:
             return
 
@@ -285,9 +330,12 @@ class FactoryAutonomyNode(Node):
             self._last_refresh_time = now
 
     def _handle_server_response(self, request_code: str, response) -> None:
+        """Merge one parsed server response into the node state."""
         now = time.time()
 
         if response == RESPONSE_STOP:
+            # STOP means "competition has not started yet" when polled before
+            # the run, so return to the start-wait loop.
             self._competition_started = False
             self._state = STATE_WAITING_FOR_START
             self._next_start_request_time = now + self._start_request_period
@@ -298,10 +346,14 @@ class FactoryAutonomyNode(Node):
         if request_code in PART_RESPONSE_REQUESTS:
             self._snapshot = self._snapshot.update(request_code, response)
             if request_code == REQUEST_INCOMING and not self._competition_started:
+                # The first non-STOP incoming response is treated as the start
+                # of the run. We already know incoming, so refresh the rest.
                 self._competition_started = True
                 self._last_event = f'run started; incoming parts={"".join(response)}'
                 self._start_factory_refresh(include_incoming=False)
             elif self._state == STATE_REFRESHING_FACTORY:
+                # Refreshes are serialized: once one response arrives, ask for
+                # the next item in the queue.
                 self._request_next_refresh_item()
             else:
                 self._last_event = f'updated {request_code}={"".join(response)}'
@@ -314,6 +366,7 @@ class FactoryAutonomyNode(Node):
             self._publish_status(force=True)
 
     def _start_factory_refresh(self, include_incoming: bool = True) -> None:
+        """Queue a full snapshot refresh from the server."""
         self._state = STATE_REFRESHING_FACTORY
         self._refresh_queue = [
             REQUEST_OUTGOING,
@@ -325,6 +378,7 @@ class FactoryAutonomyNode(Node):
         self._request_next_refresh_item()
 
     def _request_next_refresh_item(self) -> None:
+        """Send the next request needed to complete a queued refresh."""
         if self._pending_request is not None:
             return
 
@@ -338,6 +392,7 @@ class FactoryAutonomyNode(Node):
         self._send_server_request(self._refresh_queue.pop(0))
 
     def _maybe_request_time_left(self) -> None:
+        """Optionally request the remaining competition time at a slower cadence."""
         if self._time_left_period <= 0.0:
             return
         if self._pending_request is not None:
@@ -348,6 +403,7 @@ class FactoryAutonomyNode(Node):
             self._send_server_request(REQUEST_TIME_LEFT)
 
     def _dispatch_next_task(self) -> None:
+        """Ask the planner for the next move and start its pickup leg."""
         if self._current_task is not None:
             return
 
@@ -362,6 +418,7 @@ class FactoryAutonomyNode(Node):
         self._send_navigation_goal(task.pickup_waypoint, leg='pickup')
 
     def _send_navigation_goal(self, waypoint_name: str, leg: str) -> None:
+        """Resolve one waypoint name and forward it to Nav2."""
         if self._current_task is None:
             return
 
@@ -400,17 +457,21 @@ class FactoryAutonomyNode(Node):
         self._publish_status(force=True)
 
     def _pose_for_waypoint(self, waypoint: Waypoint) -> PoseStamped:
+        """Convert a logical waypoint into a Nav2 goal pose."""
         pose = PoseStamped()
         pose.header.stamp = self.get_clock().now().to_msg()
-        pose.header.frame_id = waypoint.frame_id or self._map_frame
+        pose.header.frame_id = self._map_frame
         pose.pose.position.x = waypoint.x
         pose.pose.position.y = waypoint.y
         pose.pose.position.z = 0.0
+        # Nav2 expects a quaternion. The waypoint stores yaw in radians, so we
+        # construct the planar quaternion directly from that heading.
         pose.pose.orientation.z = math.sin(waypoint.yaw / 2.0)
         pose.pose.orientation.w = math.cos(waypoint.yaw / 2.0)
         return pose
 
     def _goal_response_cb(self, future) -> None:
+        """Handle the asynchronous accept/reject response from Nav2."""
         self._goal_future = None
         try:
             goal_handle = future.result()
@@ -427,10 +488,12 @@ class FactoryAutonomyNode(Node):
         result_future.add_done_callback(self._nav_result_cb)
 
     def _nav_feedback_cb(self, feedback_msg) -> None:
+        """Keep the latest distance-to-goal for status publishing."""
         feedback = feedback_msg.feedback
         self._last_feedback_distance = getattr(feedback, 'distance_remaining', None)
 
     def _nav_result_cb(self, future) -> None:
+        """Handle the final result of a Nav2 goal."""
         self._goal_handle = None
         try:
             result = future.result()
@@ -445,6 +508,7 @@ class FactoryAutonomyNode(Node):
         self._handle_nav_failure(f'Nav2 finished with status {_goal_status_name(result.status)}')
 
     def _handle_arrival(self) -> None:
+        """Advance from a successful navigation result into the dwell phase."""
         if self._current_task is None or self._current_leg is None:
             self._state = STATE_IDLE
             return
@@ -454,17 +518,20 @@ class FactoryAutonomyNode(Node):
             self._pause_until = time.time() + self._pickup_pause_seconds
             self._publish_eletro(True, reason='pickup arrival')
             self._last_event = f'arrived at pickup {self._current_task.source.label()}'
+            # TODO: publish the "loaded" footprint here when that interface exists.
         else:
             self._state = STATE_DROPOFF_PAUSE
             self._pause_until = time.time() + self._dropoff_pause_seconds
             self._publish_eletro(False, reason='dropoff arrival')
             self._last_event = f'arrived at dropoff {self._current_task.target.label()}'
+            # TODO: publish the "unloaded" footprint here when that interface exists.
 
         self._nav_attempts = 0
         self.get_logger().info(self._last_event)
         self._publish_status(force=True)
 
     def _handle_nav_failure(self, detail: str) -> None:
+        """Retry a navigation leg when allowed, otherwise fail the task."""
         if self._current_task is None:
             self._state = STATE_IDLE
             return
@@ -481,6 +548,11 @@ class FactoryAutonomyNode(Node):
         self._fail_current_task(detail)
 
     def _finish_current_task(self) -> None:
+        """Commit the completed move into the local snapshot model.
+
+        The local model is updated optimistically here, then a full refresh is
+        requested so the node converges back to the authoritative server state.
+        """
         if self._current_task is None:
             self._state = STATE_IDLE
             return
@@ -495,6 +567,7 @@ class FactoryAutonomyNode(Node):
         self._publish_status(force=True)
 
     def _fail_current_task(self, detail: str) -> None:
+        """Drop the current task and return to idle after an unrecoverable error."""
         task = self._current_task.to_dict() if self._current_task else None
         self._last_event = f'failed task {task}: {detail}'
         self.get_logger().error(self._last_event)
@@ -503,6 +576,7 @@ class FactoryAutonomyNode(Node):
         self._publish_status(force=True)
 
     def _clear_current_task(self) -> None:
+        """Reset all task- and navigation-specific runtime state."""
         self._current_task = None
         self._current_leg = None
         self._goal_handle = None
@@ -514,6 +588,7 @@ class FactoryAutonomyNode(Node):
         self._state = STATE_IDLE
 
     def _publish_status(self, force: bool = False) -> None:
+        """Publish a compact JSON snapshot for debugging and dashboards."""
         now = time.time()
         if not force and now - self._last_status_publish < self._status_period_seconds:
             return
@@ -540,6 +615,7 @@ class FactoryAutonomyNode(Node):
         self._status_pub.publish(msg)
 
     def _publish_eletro(self, enabled: bool, reason: str) -> None:
+        """Publish the electromagnet command and log why it changed."""
         msg = Bool()
         msg.data = enabled
         self._eletro_pub.publish(msg)
@@ -549,6 +625,7 @@ class FactoryAutonomyNode(Node):
 
 
 def _goal_status_name(status: int) -> str:
+    """Convert Nav2 status codes into readable log text."""
     names = {
         GoalStatus.STATUS_UNKNOWN: 'UNKNOWN',
         GoalStatus.STATUS_ACCEPTED: 'ACCEPTED',
@@ -562,6 +639,11 @@ def _goal_status_name(status: int) -> str:
 
 
 def _latched_bool_qos() -> QoSProfile:
+    """QoS profile used for the electromagnet command topic.
+
+    Transient-local durability makes the last command available to late joiners,
+    which is useful when the GPIO node starts after the autonomy node.
+    """
     return QoSProfile(
         history=HistoryPolicy.KEEP_LAST,
         depth=1,
@@ -571,6 +653,7 @@ def _latched_bool_qos() -> QoSProfile:
 
 
 def main(args=None):
+    """ROS 2 entry point."""
     rclpy.init(args=args)
     node = FactoryAutonomyNode()
     try:

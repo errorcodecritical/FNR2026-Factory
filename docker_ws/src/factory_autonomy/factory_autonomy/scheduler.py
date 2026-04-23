@@ -35,32 +35,41 @@ _INPUT_TO_OUTPUT = {1: 2, 3: 4}
 
 @dataclass(frozen=True)
 class FactoryLocation:
+    """One physical slot in the incoming area, outgoing area, or a machine."""
+
     zone: str
     slot: int
 
     @property
     def waypoint_name(self) -> str:
+        """Canonical waypoint id used by the navigation layer."""
         return waypoint_name(self.zone, self.slot)
 
     def label(self) -> str:
+        """Human-readable label used in logs and status output."""
         return f'{self.zone}:{self.slot}'
 
 
 @dataclass(frozen=True)
 class TransportTask:
+    """A single move: take one part from source and place it at target."""
+
     part_type: str
     source: FactoryLocation
     target: FactoryLocation
 
     @property
     def pickup_waypoint(self) -> str:
+        """Waypoint name for the source slot."""
         return self.source.waypoint_name
 
     @property
     def dropoff_waypoint(self) -> str:
+        """Waypoint name for the target slot."""
         return self.target.waypoint_name
 
     def to_dict(self) -> dict:
+        """Serialize the task into status/log-friendly fields."""
         return {
             'part_type': self.part_type,
             'source': self.source.label(),
@@ -74,6 +83,12 @@ class FactoryPlanner:
     """Select the next movement from the current factory state."""
 
     def choose_next(self, snapshot: FactorySnapshot) -> Optional[TransportTask]:
+        """Choose the highest-priority feasible transport.
+
+        The priority order is tuned to keep the processing pipeline flowing:
+        raw parts first, then intermediate parts, then unloading machine
+        outputs, and finally shipping already-final incoming parts.
+        """
         occupied_outputs = list(_machine_output_sources(snapshot))
         incoming_sources = list(_incoming_sources(snapshot))
 
@@ -105,6 +120,7 @@ class FactoryPlanner:
         snapshot: FactorySnapshot,
         source: FactoryLocation,
     ) -> Optional[TransportTask]:
+        """Build a task for one source slot if a valid destination exists."""
         part_type = _slot_value(snapshot, source)
         target_zone = target_zone_for_part(part_type)
         if target_zone is None:
@@ -118,6 +134,7 @@ class FactoryPlanner:
 
 
 def waypoint_name(zone: str, slot: int) -> str:
+    """Convert a zone/slot pair into the canonical waypoint key."""
     prefixes = {
         ZONE_INCOMING: 'iwp_slot',
         ZONE_OUTGOING: 'owp_slot',
@@ -132,12 +149,14 @@ def waypoint_name(zone: str, slot: int) -> str:
 
 
 def _incoming_sources(snapshot: FactorySnapshot) -> Iterable[FactoryLocation]:
+    """Yield all non-empty incoming slots in slot order."""
     for slot, part_type in enumerate(snapshot.incoming, start=1):
         if part_type != PART_EMPTY:
             yield FactoryLocation(ZONE_INCOMING, slot)
 
 
 def _machine_output_sources(snapshot: FactorySnapshot) -> Iterable[FactoryLocation]:
+    """Yield non-empty machine output slots from both machines."""
     for zone, slots in (
         (ZONE_MACHINE_A, snapshot.machine_a),
         (ZONE_MACHINE_B, snapshot.machine_b),
@@ -151,6 +170,13 @@ def _first_available_target(
     snapshot: FactorySnapshot,
     target_zone: str,
 ) -> Optional[FactoryLocation]:
+    """Find the first valid destination for a part type.
+
+    Outgoing accepts any empty slot. Machine targets are stricter: an input
+    slot is considered available only when both the input and its paired output
+    slot are empty, which prevents placing a new part into a machine lane that
+    is still occupied by unfinished or uncollected work.
+    """
     if target_zone == ZONE_OUTGOING:
         for slot, part_type in enumerate(snapshot.outgoing, start=1):
             if part_type == PART_EMPTY:
@@ -171,10 +197,12 @@ def _first_available_target(
 
 
 def _slot_value(snapshot: FactorySnapshot, location: FactoryLocation) -> str:
+    """Read one slot value from the snapshot."""
     return _zone_slots(snapshot, location.zone)[location.slot - 1]
 
 
 def _zone_slots(snapshot: FactorySnapshot, zone: str) -> Tuple[str, str, str, str]:
+    """Return the 4-slot tuple for one zone."""
     if zone == ZONE_INCOMING:
         return snapshot.incoming
     if zone == ZONE_OUTGOING:

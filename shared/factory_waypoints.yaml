@@ -1,0 +1,115 @@
+# Factory slot coordinates for Nav2 goals.
+# x and y are in meters in the global map frame.
+# yaw_deg is in degrees.
+waypoints:
+  iwp_slot_1:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - incoming:1
+
+  iwp_slot_2:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - incoming:2
+
+  iwp_slot_3:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - incoming:3
+
+  iwp_slot_4:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - incoming:4
+
+  owp_slot_1:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - outgoing:1
+
+  owp_slot_2:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - outgoing:2
+
+  owp_slot_3:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - outgoing:3
+
+  owp_slot_4:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - outgoing:4
+
+  machine_a_slot_1:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - machine_a:1
+
+  machine_a_slot_2:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - machine_a:2
+
+  machine_a_slot_3:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - machine_a:3
+
+  machine_a_slot_4:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - machine_a:4
+
+  machine_b_slot_1:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - machine_b:1
+
+  machine_b_slot_2:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - machine_b:2
+
+  machine_b_slot_3:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - machine_b:3
+
+  machine_b_slot_4:
+    x: 0.0
+    y: 0.0
+    yaw_deg: 0.0
+    aliases:
+      - machine_b:4

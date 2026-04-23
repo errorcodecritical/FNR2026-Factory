@@ -50,12 +50,15 @@ PART_RESPONSE_REQUESTS = {
 
 @dataclass(frozen=True)
 class FactorySnapshot:
+    """Immutable view of the four server-managed slot groups."""
+
     incoming: Tuple[str, str, str, str] = (PART_EMPTY,) * 4
     outgoing: Tuple[str, str, str, str] = (PART_EMPTY,) * 4
     machine_a: Tuple[str, str, str, str] = (PART_EMPTY,) * 4
     machine_b: Tuple[str, str, str, str] = (PART_EMPTY,) * 4
 
     def update(self, request_code: str, slots: Tuple[str, str, str, str]) -> 'FactorySnapshot':
+        """Return a new snapshot with one zone replaced from a server response."""
         if request_code == REQUEST_INCOMING:
             return replace(self, incoming=slots)
         if request_code == REQUEST_OUTGOING:
@@ -67,6 +70,7 @@ class FactorySnapshot:
         raise ValueError(f'cannot update snapshot from request {request_code}')
 
     def with_slot(self, zone: str, slot: int, value: str) -> 'FactorySnapshot':
+        """Return a new snapshot with a single slot changed locally."""
         if slot < 1 or slot > 4:
             raise ValueError(f'slot must be 1..4, got {slot}')
         if value not in SLOT_VALUES:
@@ -78,6 +82,7 @@ class FactorySnapshot:
         return replace(self, **{field_name: tuple(current)})
 
     def to_dict(self) -> dict:
+        """Serialize tuples back into compact 4-character strings."""
         return {
             'incoming': ''.join(self.incoming),
             'outgoing': ''.join(self.outgoing),
@@ -115,6 +120,7 @@ def parse_server_response(request_code: str, payload: bytes | str):
 
 
 def decode_text(payload: bytes | str) -> str:
+    """Decode bytes, trim whitespace, and normalize to upper-case ASCII-ish text."""
     if isinstance(payload, bytes):
         text = payload.decode('utf-8', errors='replace')
     else:
@@ -123,6 +129,7 @@ def decode_text(payload: bytes | str) -> str:
 
 
 def parse_part_slots(text: str) -> Tuple[str, str, str, str]:
+    """Validate a 4-slot response such as 'BGXR'."""
     text = text.strip().upper()
     if len(text) != 4:
         raise ValueError(f'part response must have exactly 4 letters, got {text!r}')
@@ -135,6 +142,7 @@ def parse_part_slots(text: str) -> Tuple[str, str, str, str]:
 
 
 def parse_time_left(text: str) -> int:
+    """Parse a time-left response like 'T532' into seconds."""
     text = text.strip().upper()
     if not text.startswith('T'):
         raise ValueError(f'time-left response must start with T, got {text!r}')
@@ -145,6 +153,7 @@ def parse_time_left(text: str) -> int:
 
 
 def target_zone_for_part(part_type: str) -> Optional[str]:
+    """Map a part type to the next destination zone in the factory."""
     part_type = part_type.upper()
     if part_type == PART_FINAL:
         return 'outgoing'
@@ -158,6 +167,7 @@ def target_zone_for_part(part_type: str) -> Optional[str]:
 
 
 def zone_to_snapshot_field(zone: str) -> str:
+    """Translate public zone names into FactorySnapshot attribute names."""
     zones = {
         'incoming': 'incoming',
         'outgoing': 'outgoing',
