@@ -18,7 +18,7 @@ BASE_SERVICES=(
 
 print_help() {
 	cat <<EOF
-Usage: ./$SCRIPT_NAME <stage>
+Usage: ./$SCRIPT_NAME <stage> [--attach|--detach]
 
 Stages:
 	base                Start base runtime stack (drivers + teleop + localization)
@@ -35,6 +35,8 @@ Examples:
 	./$SCRIPT_NAME base
 	./$SCRIPT_NAME record
 	./$SCRIPT_NAME offline_map
+	./$SCRIPT_NAME localize_waypoints
+	./$SCRIPT_NAME localize_waypoints --detach
 EOF
 }
 
@@ -43,6 +45,7 @@ run_base() {
 }
 
 stage="${1:-}"
+mode="${2:-}"
 
 case "$stage" in
 	base)
@@ -65,7 +68,19 @@ case "$stage" in
 
 	localize_waypoints)
 		run_base
-		docker compose --profile slam_localization --profile waypoint_capture up -d slam_localization waypoint_capture
+		case "$mode" in
+			""|--attach)
+				docker compose --profile slam_localization --profile waypoint_capture up slam_localization waypoint_capture
+				;;
+			--detach)
+				docker compose --profile slam_localization --profile waypoint_capture up -d slam_localization waypoint_capture
+				;;
+			*)
+				echo "Invalid mode for localize_waypoints: $mode" >&2
+				echo "Use --attach or --detach" >&2
+				exit 1
+				;;
+		esac
 		;;
 
 	nav)
