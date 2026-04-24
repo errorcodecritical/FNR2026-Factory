@@ -16,6 +16,16 @@ BASE_SERVICES=(
 	teleop
 )
 
+COMPETITION_BASE_SERVICES=(
+	publisher
+	electromagnet_gpio
+	rplidar
+	mecanum_driver
+	minimu9_publisher
+	imu_filter
+	robot_localization
+)
+
 print_help() {
 	cat <<EOF
 Usage: ./$SCRIPT_NAME <stage> [--attach|--detach]
@@ -27,6 +37,7 @@ Stages:
 	slam_map            Start online SLAM mapping
 	localize_waypoints  Start localization + waypoint capture
 	nav                 Start Nav2 navigation
+	competition         Start headless full competition stack (no teleop)
 	goto                Send a test NavigateToPose goal by waypoint name
 	list_waypoints      List saved waypoint names and poses
 	autonomy            Start factory autonomy node
@@ -40,6 +51,7 @@ Examples:
 	./$SCRIPT_NAME record
 	./$SCRIPT_NAME offline_map
 	./$SCRIPT_NAME offline_map --resolution 0.03
+	./$SCRIPT_NAME competition
 	./$SCRIPT_NAME list_waypoints
 	./$SCRIPT_NAME goto wp_001
 	./$SCRIPT_NAME replay_viz
@@ -50,6 +62,10 @@ EOF
 
 run_base() {
 	docker compose up -d "${BASE_SERVICES[@]}"
+}
+
+run_competition_base() {
+	docker compose up -d "${COMPETITION_BASE_SERVICES[@]}"
 }
 
 resolve_latest_recording() {
@@ -143,6 +159,12 @@ case "$stage" in
 	nav)
 		run_base
 		docker compose --profile slam_localization --profile nav2_navigation up -d slam_localization nav2
+		;;
+
+	competition)
+		run_competition_base
+		docker compose --profile slam_localization --profile waypoint_capture --profile nav2_navigation up -d \
+			slam_localization waypoint_capture nav2 factory_autonomy
 		;;
 
 	goto)
