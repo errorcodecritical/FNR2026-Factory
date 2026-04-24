@@ -1,8 +1,10 @@
 factory_autonomy:
   ros__parameters:
     # Set this to the competition server IP on the robot Wi-Fi network.
-    server_host: "127.0.0.1"
-    server_port: 5005
+    server_host: "10.0.0.3"
+    server_port: 1234
+    #server_host: "10.227.21.102"
+    #server_port: 44832
     client_bind_host: "0.0.0.0"
     client_bind_port: 0
 
