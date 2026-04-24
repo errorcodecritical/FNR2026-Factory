@@ -3,5 +3,6 @@ docker_ws/build/
 docker_ws/install/
 docker_ws/log/
 shared/maps/*
+shared/cyclonedds.xml
 
 # Keep docker_ws/src (contains symlinks to packages)

@@ -230,6 +230,19 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /odom
       Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: WaypointMarkers
+      Namespaces:
+        waypoints: true
+        waypoint_labels: true
+      Topic:
+        Depth: 10
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /factory_autonomy/waypoint_markers
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

@@ -27,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'autonomy_node = factory_autonomy.autonomy_node:main',
+            'waypoint_markers = factory_autonomy.waypoint_markers:main',
         ],
     },
 )

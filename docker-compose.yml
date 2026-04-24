@@ -496,6 +496,26 @@ services:
   # VISUALIZATION
   # Profile: visualization
   # ───────────────────────────────────────────────────────────────────────────
+  waypoint_markers:
+    build:
+      context: .
+      dockerfile: Dockerfile.autonomy
+    container_name: waypoint-markers
+    profiles: [visualization]
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+    command:
+      - factory_autonomy
+      - bash
+      - -c
+      - sleep 2 && ros2 run factory_autonomy waypoint_markers --ros-args -p waypoints_file:=/shared/factory_waypoints.yaml
+
   rviz2:
     build:
       context: .
