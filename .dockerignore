@@ -1,29 +1,27 @@
-# Exclude from Docker build context to speed up builds
+# ROS build artifacts
+docker_ws/build
+docker_ws/install
+docker_ws/log
+
+# Bags & maps
+shared/recordings
+shared/maps
+
+# Git
 .git
 .gitignore
-*.md
-.DS_Store
+
+# Logs
+*.log
+
+# ROS bags
+*.bag
+*.db3
+
+# Python
 __pycache__
 *.pyc
-*.pyo
-*.pyd
-.Python
-*.egg-info
-dist
-build
-.venv
-venv/
-.env
-.pytest_cache
-.mypy_cache
-node_modules
-npm-debug.log
+
+# Editor junk
 .vscode
 .idea
-.clang-format
-*.swp
-*.swo
-*~
-.editorconfig
-docker-compose.override.yml
-.github
