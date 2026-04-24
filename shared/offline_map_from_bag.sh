@@ -7,10 +7,38 @@ MAP_DIR="/shared/maps/${MAP_NAME}"
 MAP_FILE="${MAP_DIR}/${MAP_NAME}"
 SLAM_PARAMS=${SLAM_PARAMS:-/shared/slam_configs/online_async.yaml}
 
-if [[ ! -e "${BAG_PATH}" ]]; then
+resolve_bag_path() {
+  local requested_path="$1"
+
+  if [[ -e "${requested_path}" ]]; then
+    echo "${requested_path}"
+    return
+  fi
+
+  if [[ "${requested_path}" == "/shared/recordings/latest" ]]; then
+    local newest_session
+    newest_session=$(ls -1dt /shared/recordings/session_* 2>/dev/null | head -n 1 || true)
+    if [[ -n "${newest_session}" ]]; then
+      echo "${newest_session}"
+      return
+    fi
+  fi
+
+  echo ""
+}
+
+BAG_PATH_RESOLVED=$(resolve_bag_path "${BAG_PATH}")
+if [[ -z "${BAG_PATH_RESOLVED}" ]]; then
   echo "Bag path does not exist: ${BAG_PATH}" >&2
+  echo "No session_* recording found under /shared/recordings" >&2
   exit 1
 fi
+
+if [[ "${BAG_PATH_RESOLVED}" != "${BAG_PATH}" ]]; then
+  echo "Bag path '${BAG_PATH}' not found, using latest session: ${BAG_PATH_RESOLVED}"
+fi
+
+BAG_PATH="${BAG_PATH_RESOLVED}"
 
 mkdir -p "${MAP_DIR}"
 

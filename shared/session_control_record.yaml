@@ -6,6 +6,7 @@ session_control:
     stop_button_idx: 1        # B
     waypoint_button_idx: 2    # X (unused in record mode)
     recordings_dir: /shared/recordings
+    record_all: true
     record_topics:
       - /scan
       - /imu/data

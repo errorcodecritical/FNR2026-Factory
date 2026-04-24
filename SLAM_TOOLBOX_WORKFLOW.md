@@ -2,6 +2,25 @@
 
 This workspace now uses `slam_toolbox` end-to-end (no AMCL, no Cartographer).
 
+## Startup Script (Stage Runner)
+
+Use the stage runner script instead of long `docker compose` commands:
+
+```bash
+./startup.sh --help
+```
+
+Main stages:
+- `./startup.sh base`
+- `./startup.sh record`
+- `./startup.sh offline_map`
+- `./startup.sh slam_map`
+- `./startup.sh localize_waypoints`
+- `./startup.sh nav`
+- `./startup.sh autonomy`
+- `./startup.sh rviz`
+- `./startup.sh stop`
+
 ## Xbox Keybinds
 
 - `A` (button 0): start recording sensor session
@@ -17,13 +36,7 @@ Keybind params are in:
 Bring up base drivers + teleop + recorder control:
 
 ```bash
-docker compose up publisher rplidar minimu9_publisher mecanum_driver imu_filter robot_localization teleop
-```
-
-In another terminal, run recording control:
-
-```bash
-docker compose --profile record_session up session_record
+./startup.sh record
 ```
 
 Drive with the Xbox controller:
@@ -38,7 +51,7 @@ Bags are stored in `/shared/recordings/session_YYYYMMDD_HHMMSS`.
 Run offline map generation from the latest bag:
 
 ```bash
-docker compose --profile offline_mapping up offline_map_builder
+./startup.sh offline_map
 ```
 
 Outputs:
@@ -51,7 +64,7 @@ Outputs:
 Start localization and waypoint capture:
 
 ```bash
-docker compose --profile slam_localization --profile waypoint_capture up slam_localization waypoint_capture
+./startup.sh localize_waypoints
 ```
 
 While localizing:
@@ -65,13 +78,13 @@ You can rename waypoint keys later in the YAML file.
 Start navigation:
 
 ```bash
-docker compose --profile nav2_navigation up nav2
+./startup.sh nav
 ```
 
 Start autonomous task execution over Wi-Fi competition protocol:
 
 ```bash
-docker compose up factory_autonomy
+./startup.sh autonomy
 ```
 
 The autonomy node:

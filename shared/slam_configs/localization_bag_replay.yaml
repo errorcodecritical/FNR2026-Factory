@@ -9,7 +9,7 @@ slam_toolbox:
     publish_tf: true
     mode: localization
 
-    map_file_name: /shared/maps/fnr26_map_dataset_20260424/fnr26_map_dataset_20260424
+    map_file_name: /shared/maps/latest
     map_start_at_dock: false
     map_start_pose: [0.0, 0.0, 0.0]
 

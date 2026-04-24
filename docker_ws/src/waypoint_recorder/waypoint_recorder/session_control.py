@@ -30,6 +30,7 @@ class SessionControl(Node):
         self.declare_parameter('waypoint_button_idx', 2)
 
         self.declare_parameter('recordings_dir', '/shared/recordings')
+        self.declare_parameter('record_all', False)
         self.declare_parameter(
             'record_topics',
             ['/scan', '/imu/data', '/odometry/filtered', '/tf', '/tf_static', '/cmd_vel'],
@@ -50,6 +51,7 @@ class SessionControl(Node):
         self.waypoint_button_idx = int(self.get_parameter('waypoint_button_idx').value)
 
         self.recordings_dir = Path(str(self.get_parameter('recordings_dir').value))
+        self.record_all = bool(self.get_parameter('record_all').value)
         self.record_topics = [str(topic) for topic in self.get_parameter('record_topics').value]
 
         self.waypoint_file = Path(str(self.get_parameter('waypoint_file').value))
@@ -155,7 +157,10 @@ class SessionControl(Node):
         stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         self._bag_output_dir = self.recordings_dir / f'session_{stamp}'
 
-        cmd = ['ros2', 'bag', 'record', '-o', str(self._bag_output_dir)] + self.record_topics
+        if self.record_all:
+            cmd = ['ros2', 'bag', 'record', '-a', '-o', str(self._bag_output_dir)]
+        else:
+            cmd = ['ros2', 'bag', 'record', '-o', str(self._bag_output_dir)] + self.record_topics
         self.get_logger().info(f'starting rosbag record: {" ".join(cmd)}')
         self._bag_proc = subprocess.Popen(cmd)
         self._publish_status(f'recording_started:{self._bag_output_dir}')

@@ -50,7 +50,7 @@ services:
     network_mode: host
     devices: []
     volumes:
-      - /dev/ttyUSB1:/dev/ttyUSB_CP210X
+      - /dev/ttyUSB_CP210X:/dev/ttyUSB_CP210X
       - ./shared:/shared
       - ./docker_ws:/docker_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
@@ -83,7 +83,7 @@ services:
     network_mode: host
     devices: []
     volumes:
-      - /dev/ttyACM0:/dev/ttyACM_ARDUINO
+      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
       - ./shared:/shared
       - ./docker_ws:/docker_ws
     environment:
@@ -105,7 +105,7 @@ services:
     network_mode: host
     devices: []
     volumes:
-      - /dev/ttyACM1:/dev/ttyACM_PICO
+      - /dev/ttyACM_PICO:/dev/ttyACM_PICO
       - ./shared:/shared
       - ./docker_ws:/docker_ws
     environment:
