@@ -476,7 +476,7 @@ services:
   factory_autonomy:
     build:
       context: .
-      dockerfile: Dockerfile.autonomy
+      dockerfile: Dockerfile.localization
     container_name: factory-autonomy
     network_mode: host
     volumes:
@@ -499,7 +499,7 @@ services:
   waypoint_markers:
     build:
       context: .
-      dockerfile: Dockerfile.autonomy
+      dockerfile: Dockerfile.localization
     container_name: waypoint-markers
     profiles: [visualization]
     network_mode: host
