@@ -72,8 +72,6 @@ def generate_launch_description():
 
     # ── Shared arguments used by every node ───────────────────────────────────
     lifecycle_nodes = [
-        # "map_server",
-        # "amcl",
         "planner_server",
         "controller_server",
         "bt_navigator",
@@ -82,36 +80,6 @@ def generate_launch_description():
     ]
 
     # ── Nodes ─────────────────────────────────────────────────────────────────
-
-    map_server = Node(
-        package="nav2_map_server",
-        executable="map_server",
-        name="map_server",
-        output="screen",
-        arguments=["--ros-args", "--log-level", log_level],
-        parameters=[
-            configured_params,
-            {"yaml_filename": map_yaml},
-        ],
-    )
-
-    amcl = Node(
-        package="nav2_amcl",
-        executable="amcl",
-        name="amcl",
-        output="screen",
-        arguments=["--ros-args", "--log-level", log_level],
-        parameters=[
-            configured_params,
-            # Hard-coded safety overrides — these win over the YAML default
-            # so base_footprint can never sneak back in.
-            {
-                "base_frame_id":   "base_link",
-                "odom_frame_id":   "odom",
-                "global_frame_id": "map",
-            },
-        ],
-    )
 
     planner_server = Node(
         package="nav2_planner",
@@ -230,8 +198,6 @@ def generate_launch_description():
         log_level_arg,
 
         # Nodes
-        # map_server,
-        # amcl,
         planner_server,
         controller_server,
         bt_navigator,

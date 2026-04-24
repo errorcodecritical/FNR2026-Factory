@@ -5,7 +5,7 @@ slam_toolbox:
     # ROS COMMUNICATION
     # ─────────────────────────────────────────────────────────────────────
     scan_topic:  /scan
-    odom_topic:  /odom
+    odom_topic:  /odometry/filtered
     odom_frame:  odom
     map_frame:   map
     base_frame:  base_link
@@ -16,15 +16,15 @@ slam_toolbox:
     # ─────────────────────────────────────────────────────────────────────
     # MAP CONFIGURATION
     # ─────────────────────────────────────────────────────────────────────
-    map_file_name: /shared/maps/fnr26_map_edited/fnr26_map_edited
+    map_file_name: /shared/maps/fnr26_map/fnr26_map
     map_start_at_dock: false
     map_start_pose: [0.0, 0.0, 0.0]
 
     # ─────────────────────────────────────────────────────────────────────
     # RESOLUTION & RANGE
     # ─────────────────────────────────────────────────────────────────────
-    resolution:       0.01  # 1cm resolution is ideal for 2x2m
-    max_laser_range:  3.5   # Matches your LiDAR hardware limit
+    resolution:       0.05
+    max_laser_range:  12.0
 
     # ─────────────────────────────────────────────────────────────────────
     # UPDATE PARAMETERS (Optimized for Small Space)
@@ -50,8 +50,8 @@ slam_toolbox:
     use_scan_barycenter: true
 
     # Keep a small buffer of recent scans to maintain CPU efficiency.
-    scan_buffer_size:                  15
-    scan_buffer_maximum_scan_distance: 3.5
+    scan_buffer_size:                  30
+    scan_buffer_maximum_scan_distance: 10.0
 
     # Tiny search space: in a 2x2m room, we shouldn't search more than 0.5m away.
     correlation_search_space_dimension:       0.5

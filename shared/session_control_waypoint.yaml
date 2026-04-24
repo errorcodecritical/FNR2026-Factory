@@ -1,0 +1,13 @@
+session_control:
+  ros__parameters:
+    mode: waypoint
+    joy_topic: /joy
+    start_button_idx: 7       # START (unused in waypoint mode)
+    stop_button_idx: 6        # BACK (unused in waypoint mode)
+    waypoint_button_idx: 2    # X saves waypoint
+    waypoint_file: /shared/factory_waypoints.yaml
+    waypoint_name_prefix: wp_
+    map_frame: map
+    base_frame: base_link
+    waypoint_debounce_seconds: 0.6
+    tf_lookup_timeout_seconds: 0.25

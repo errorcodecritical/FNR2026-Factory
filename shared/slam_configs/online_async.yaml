@@ -1,7 +1,7 @@
 slam_toolbox:
   ros__parameters:
     scan_topic:  /scan
-    odom_topic:  /odom
+    odom_topic:  /odometry/filtered
     odom_frame:  odom
     map_frame:   map
     base_frame:  base_link
@@ -16,22 +16,21 @@ slam_toolbox:
     # 1.5 m range gives ~8 mm point spacing, so 1 cm cells are at the
     # limit of what the sensor can actually resolve.
     # ─────────────────────────────────────────────────────────────────────
-    resolution:       0.01
-    max_laser_range:  3.5   # room diagonal is ~2.5 m — 3.5 m gives margin
+    resolution:       0.05
+    max_laser_range:  12.0
                             # without including spurious long-range noise
 
     # ─────────────────────────────────────────────────────────────────────
     # UPDATE INTERVALS — update aggressively for a small slow-moving robot
     # ─────────────────────────────────────────────────────────────────────
-    map_update_interval:      0.1   # update map every 100ms — small room
-                                    # fills quickly, want every scan captured
+    map_update_interval:      0.5
     transform_publish_period: 0.02  # 50 Hz TF — keep smooth
 
     # Very small movement thresholds — in a 2 m room you need detail
     # from every position, not just after travelling 20+ cm
-    minimum_travel_distance:  0.01  # 1 cm — capture every small movement
-    minimum_travel_heading:   0.01  # ~0.6° — capture every small rotation
-    minimum_time_interval:    0.2   # process at up to 5 Hz regardless of motion
+    minimum_travel_distance:  0.05
+    minimum_travel_heading:   0.05
+    minimum_time_interval:    0.2
 
     # ─────────────────────────────────────────────────────────────────────
     # LOOP CLOSURE — critical even in a small room
@@ -39,8 +38,8 @@ slam_toolbox:
     # Tight loop closure keeps accumulated drift from distorting the map.
     # ─────────────────────────────────────────────────────────────────────
     do_loop_closing:                    true
-    loop_search_maximum_distance:       2.5   # entire room fits in this radius
-    loop_match_minimum_chain_size:      3     # low — room is too small for long chains
+    loop_search_maximum_distance:       5.0
+    loop_match_minimum_chain_size:      10
     loop_match_minimum_response_fine:   0.55  # high — demand good match quality
     loop_match_minimum_response_coarse: 0.4   # higher than default — avoid false closures
                                               # in a symmetric room (corridors, plain walls)
@@ -54,24 +53,19 @@ slam_toolbox:
     # Search space: in a 2 m room odometry error between scans is small.
     # A 0.3 m search window is more than enough and avoids false matches
     # on symmetric geometry (e.g. two identical walls opposite each other).
-    correlation_search_space_dimension:       0.3   # was 0.8 — tighter = faster,
-                                                    # less risk of symmetry confusion
-    correlation_search_space_resolution:      0.005 # 5 mm search resolution —
-                                                    # finer than map cells for
-                                                    # subpixel accuracy
-    correlation_search_space_smear_deviation: 0.05  # tighter smear = sharper features
-                                                    # in the correlation map
+    correlation_search_space_dimension:       0.5
+    correlation_search_space_resolution:      0.01
+    correlation_search_space_smear_deviation: 0.1
 
     # Large scan buffer — keep many scans in memory since the room is tiny
     # and revisiting all positions happens constantly
-    scan_buffer_size:                  200   # store more history
-    scan_buffer_maximum_scan_distance: 3.5   # match room diagonal
+    scan_buffer_size:                  30
+    scan_buffer_maximum_scan_distance: 10.0
 
     # Demand high quality scan links — in a small room a bad link will
     # visibly distort the whole map
-    link_match_minimum_response_fine: 0.55  # raised from 0.1
-    link_scan_maximum_distance:       1.0   # max 1 m between linked scans —
-                                            # appropriate for a 2 m room
+    link_match_minimum_response_fine: 0.1
+    link_scan_maximum_distance:       1.5
 
     # ─────────────────────────────────────────────────────────────────────
     # SOLVER — unchanged, Ceres is well suited for small dense graphs

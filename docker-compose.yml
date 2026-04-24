@@ -3,16 +3,22 @@ version: '3.8'
 # Docker Compose Profiles:
 #
 #   (default)            Hardware drivers + EKF + IMU filter always run
-#   slam_mapping         Cartographer online mapping (builds new .pbstream + pgm/yaml map)
-#   slam_localization    Cartographer localisation against a saved .pbstream
-#   map_save             Save occupancy grid from Cartographer to pgm/yaml
+#   record_session       Headless teleop + joystick-controlled rosbag recording
+#   offline_mapping      Build map from recorded bag using slam_toolbox
+#   slam_mapping         SLAM Toolbox online mapping (builds posegraph + pgm/yaml map)
+#   slam_localization    SLAM Toolbox localisation against a saved posegraph
+#   waypoint_capture     Save waypoints from controller while localizing
+#   map_save             Save occupancy grid and SLAM Toolbox posegraph
 #   nav2_navigation      Autonomous navigation with custom Nav2 stack
 #   visualization        RViz2
 #
 # Usage:
 #   docker compose up                                   # drivers only
+#   docker compose --profile record_session up          # headless sensor recording
+#   docker compose --profile offline_mapping up         # map from a recorded bag
 #   docker compose --profile slam_mapping up            # build a new map
 #   docker compose --profile slam_localization up       # localise in known map
+#   docker compose --profile waypoint_capture up        # save waypoints with controller
 #   docker compose --profile map_save up                # save map to disk
 #   docker compose --profile nav2_navigation up         # autonomous navigation
 #   docker compose --profile visualization up           # add RViz
@@ -226,17 +232,71 @@ services:
       - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
 
   # ───────────────────────────────────────────────────────────────────────────
-  # CARTOGRAPHER — SLAM MAPPING
+  # SESSION CONTROL — HEADLESS RECORDING
+  # Profile: record_session
+  # START button starts rosbag recording, BACK button stops and updates
+  # /shared/recordings/latest symlink.
+  # ───────────────────────────────────────────────────────────────────────────
+  session_record:
+    build:
+      context: .
+      dockerfile: Dockerfile.localization
+    container_name: fnr26-session-record
+    profiles: [record_session]
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+    command:
+      - waypoint_recorder
+      - bash
+      - -c
+      - sleep 4 && ros2 run waypoint_recorder session_control --ros-args --params-file /shared/session_control_record.yaml
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # OFFLINE MAP BUILDER
+  # Profile: offline_mapping
+  # Consumes /shared/recordings/latest by default and writes map files to
+  # /shared/maps/fnr26_map/.
+  # ───────────────────────────────────────────────────────────────────────────
+  offline_map_builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.localization
+    container_name: fnr26-offline-map-builder
+    profiles: [offline_mapping]
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+      BAG_PATH: /shared/recordings/latest
+      MAP_NAME: fnr26_map
+    command:
+      - slam_toolbox
+      - bash
+      - -c
+      - chmod +x /shared/offline_map_from_bag.sh && /shared/offline_map_from_bag.sh "$${BAG_PATH}" "$${MAP_NAME}"
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # SLAM TOOLBOX — SLAM MAPPING
   # Profile: slam_mapping
-  # Builds a new map and saves it as a .pbstream for later localisation.
+  # Builds a new map and saves it as a .posegraph for later localisation.
   # While running, publishes /map for RViz and Nav2.
   # When done: docker compose --profile map_save up map_saver
   # ───────────────────────────────────────────────────────────────────────────
   slam_mapping:
     build:
       context: .
-      dockerfile: Dockerfile.cartographer
-    container_name: fnr26-cartographer-mapping
+      dockerfile: Dockerfile.localization
+    container_name: fnr26-slamtoolbox-mapping
     profiles: [slam_mapping]
     privileged: true
     network_mode: host
@@ -252,16 +312,10 @@ services:
     stdin_open: true
     tty: true
     command:
-      - cartographer_ros
+      - slam_toolbox
       - bash
       - -c
-      - |
-        sleep 6 && ros2 launch cartographer_ros cartographer.launch.py \
-          configuration_directory:=/shared/cartographer_configs \
-          configuration_basename:=mapping.lua \
-          use_sim_time:=false \
-          scan_topic:=/scan \
-          odom_topic:=/odometry/filtered
+      - sleep 3 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/shared/slam_configs/online_async.yaml use_sim_time:=false
     healthcheck:
       test: ["CMD", "ros2", "topic", "hz", "/map"]
       interval: 10s
@@ -269,16 +323,16 @@ services:
       retries: 3
 
   # ───────────────────────────────────────────────────────────────────────────
-  # CARTOGRAPHER — LOCALISATION ONLY
+  # SLAM TOOLBOX — LOCALISATION ONLY
   # Profile: slam_localization
-  # Loads a saved .pbstream and localises the robot within that map.
+  # Loads a saved .posegraph and localises the robot within that map.
   # Publishes map→odom TF — do NOT run AMCL alongside this.
   # ───────────────────────────────────────────────────────────────────────────
   slam_localization:
     build:
       context: .
-      dockerfile: Dockerfile.cartographer
-    container_name: fnr26-cartographer-localization
+      dockerfile: Dockerfile.localization
+    container_name: fnr26-slamtoolbox-localization
     profiles: [slam_localization]
     privileged: true
     network_mode: host
@@ -294,18 +348,14 @@ services:
     stdin_open: true
     tty: true
     command:
-      - cartographer_ros
+      - slam_toolbox
       - bash
       - -c
       - |
-        sleep 6 && ros2 launch cartographer_ros cartographer.launch.py \
-          configuration_directory:=/shared/cartographer_configs \
-          configuration_basename:=localization.lua \
-          use_sim_time:=false \
-          scan_topic:=/scan \
-          odom_topic:=/odometry/filtered \
-          load_state_filename:=/shared/maps/fnr26_map/fnr26_map.pbstream \
-          load_frozen_state:=true
+        sleep 6 && \
+        ros2 launch slam_toolbox localization_launch.py \
+          slam_params_file:=/shared/slam_configs/localization.yaml \
+          use_sim_time:=false
     healthcheck:
       test: ["CMD", "ros2", "topic", "hz", "/map"]
       interval: 10s
@@ -313,16 +363,41 @@ services:
       retries: 3
 
   # ───────────────────────────────────────────────────────────────────────────
+  # WAYPOINT CAPTURE
+  # Profile: waypoint_capture
+  # Press X on the Xbox controller to append a waypoint while localizing.
+  # ───────────────────────────────────────────────────────────────────────────
+  waypoint_capture:
+    build:
+      context: .
+      dockerfile: Dockerfile.localization
+    container_name: fnr26-waypoint-capture
+    profiles: [waypoint_capture]
+    network_mode: host
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+    command:
+      - waypoint_recorder
+      - bash
+      - -c
+      - sleep 4 && ros2 run waypoint_recorder session_control --ros-args --params-file /shared/session_control_waypoint.yaml
+
+  # ───────────────────────────────────────────────────────────────────────────
   # MAP SAVER
   # Profile: map_save
-  # Saves the current Cartographer occupancy grid to pgm + yaml.
+  # Saves the current SLAM Toolbox occupancy grid to pgm + yaml.
   # Run after slam_mapping has built a complete map.
-  # Also triggers Cartographer to serialise the .pbstream for localisation.
+  # Also serialises the .posegraph for future localisation.
   # ───────────────────────────────────────────────────────────────────────────
   map_saver:
     build:
       context: .
-      dockerfile: Dockerfile.cartographer
+      dockerfile: Dockerfile.localization
     container_name: fnr26-map-saver
     profiles: [map_save]
     network_mode: host
@@ -334,7 +409,7 @@ services:
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
     command:
-      - cartographer_ros
+      - slam_toolbox
       - bash
       - -c
       - |
@@ -346,10 +421,10 @@ services:
           -f /shared/maps/fnr26_map/fnr26_map \
           --ros-args -p save_map_timeout:=10.0
 
-        # Serialise Cartographer state to .pbstream for future localisation
-        ros2 service call /write_state \
-          cartographer_ros_msgs/srv/WriteState \
-          "{filename: '/shared/maps/fnr26_map/fnr26_map.pbstream', include_unfinished_submaps: true}"
+        # Serialize SLAM Toolbox pose graph for future localization
+        ros2 service call /slam_toolbox/serialize_map \
+          slam_toolbox/srv/SerializePoseGraph \
+          "{filename: '/shared/maps/fnr26_map/fnr26_map'}"
 
         echo "Map saved to /shared/maps/fnr26_map/"
 
@@ -357,8 +432,8 @@ services:
   # NAV2 NAVIGATION
   # Profile: nav2_navigation
   # Uses the custom nav2_localization launch (replaces nav2_bringup).
-  # Run alongside slam_localization (Cartographer provides map→odom TF).
-  # AMCL is disabled — Cartographer handles localisation.
+  # Run alongside slam_localization (SLAM Toolbox provides map→odom TF).
+  # AMCL is disabled — SLAM Toolbox handles localisation.
   # ───────────────────────────────────────────────────────────────────────────
   nav2:
     build:
