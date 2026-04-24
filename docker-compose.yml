@@ -281,11 +281,12 @@ services:
       CYCLONEDDS_URI: /shared/cyclonedds.xml
       BAG_PATH: /shared/recordings/latest
       MAP_NAME: fnr26_map
+      MAP_RESOLUTION: ${MAP_RESOLUTION:-0.05}
     command:
       - slam_toolbox
       - bash
       - -c
-      - chmod +x /shared/offline_map_from_bag.sh && /shared/offline_map_from_bag.sh "$${BAG_PATH}" "$${MAP_NAME}"
+      - chmod +x /shared/offline_map_from_bag.sh && /shared/offline_map_from_bag.sh "$${BAG_PATH}" "$${MAP_NAME}" "$${MAP_RESOLUTION}"
 
   # ───────────────────────────────────────────────────────────────────────────
   # SLAM TOOLBOX — SLAM MAPPING

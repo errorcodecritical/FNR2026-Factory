@@ -35,6 +35,7 @@ Examples:
 	./$SCRIPT_NAME base
 	./$SCRIPT_NAME record
 	./$SCRIPT_NAME offline_map
+	./$SCRIPT_NAME offline_map --resolution 0.03
 	./$SCRIPT_NAME localize_waypoints
 	./$SCRIPT_NAME localize_waypoints --detach
 EOF
@@ -58,7 +59,28 @@ case "$stage" in
 		;;
 
 	offline_map)
-		docker compose --profile offline_mapping up offline_map_builder
+		resolution=""
+		if [[ -z "$mode" ]]; then
+			:
+		elif [[ "$mode" == "--resolution" ]]; then
+			resolution="${3:-}"
+			if [[ -z "$resolution" ]]; then
+				echo "Missing value for --resolution" >&2
+				exit 1
+			fi
+		elif [[ "$mode" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+			resolution="$mode"
+		else
+			echo "Invalid offline_map option: $mode" >&2
+			echo "Use: ./$SCRIPT_NAME offline_map [--resolution <meters>]" >&2
+			exit 1
+		fi
+
+		if [[ -n "$resolution" ]]; then
+			MAP_RESOLUTION="$resolution" docker compose --profile offline_mapping up offline_map_builder
+		else
+			docker compose --profile offline_mapping up offline_map_builder
+		fi
 		;;
 
 	slam_map)

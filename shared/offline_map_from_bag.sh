@@ -3,9 +3,12 @@ set -euo pipefail
 
 BAG_PATH=${1:-/shared/recordings/latest}
 MAP_NAME=${2:-fnr26_map}
+MAP_RESOLUTION=${3:-${MAP_RESOLUTION:-0.05}}
 MAP_DIR="/shared/maps/${MAP_NAME}"
 MAP_FILE="${MAP_DIR}/${MAP_NAME}"
 SLAM_PARAMS=${SLAM_PARAMS:-/shared/slam_configs/online_async.yaml}
+SLAM_PARAMS_RUNTIME="${SLAM_PARAMS}"
+TMP_SLAM_PARAMS=""
 
 resolve_bag_path() {
   local requested_path="$1"
@@ -40,11 +43,35 @@ fi
 
 BAG_PATH="${BAG_PATH_RESOLVED}"
 
+if ! [[ "${MAP_RESOLUTION}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "Invalid MAP_RESOLUTION '${MAP_RESOLUTION}' (expected positive number in meters, e.g. 0.05)" >&2
+  exit 1
+fi
+
 mkdir -p "${MAP_DIR}"
+
+TMP_SLAM_PARAMS=$(mktemp /tmp/slam_params_resolution_XXXX.yaml)
+python3 - "${SLAM_PARAMS}" "${TMP_SLAM_PARAMS}" "${MAP_RESOLUTION}" <<'PY'
+import sys
+import yaml
+
+source_path, out_path, resolution = sys.argv[1], sys.argv[2], float(sys.argv[3])
+
+with open(source_path, 'r', encoding='utf-8') as stream:
+    data = yaml.safe_load(stream) or {}
+
+slam = data.setdefault('slam_toolbox', {})
+params = slam.setdefault('ros__parameters', {})
+params['resolution'] = resolution
+
+with open(out_path, 'w', encoding='utf-8') as stream:
+    yaml.safe_dump(data, stream, sort_keys=False)
+PY
+SLAM_PARAMS_RUNTIME="${TMP_SLAM_PARAMS}"
 
 echo "Starting slam_toolbox (use_sim_time=true)..."
 ros2 launch slam_toolbox online_async_launch.py \
-  slam_params_file:="${SLAM_PARAMS}" \
+  slam_params_file:="${SLAM_PARAMS_RUNTIME}" \
   use_sim_time:=true &
 SLAM_PID=$!
 
@@ -52,6 +79,9 @@ cleanup() {
   if kill -0 "${SLAM_PID}" >/dev/null 2>&1; then
     kill "${SLAM_PID}" || true
     wait "${SLAM_PID}" || true
+  fi
+  if [[ -n "${TMP_SLAM_PARAMS}" && -f "${TMP_SLAM_PARAMS}" ]]; then
+    rm -f "${TMP_SLAM_PARAMS}"
   fi
 }
 trap cleanup EXIT
