@@ -57,11 +57,17 @@ class FootprintPublisherNode(Node):
 
     # Topics / parameter paths
     ENABLED_TOPIC        = "/eletro"
+    NEAR_GOAL_TOPIC      = "/factory_autonomy/near_goal"
     LOCAL_FP_TOPIC       = "/local_costmap/footprint"
     GLOBAL_FP_TOPIC      = "/global_costmap/footprint"
     LOCAL_FP_PARAM_NODE  = "/local_costmap/local_costmap"
     GLOBAL_FP_PARAM_NODE = "/global_costmap/global_costmap"
+    COLLISION_MONITOR_NODE = "/collision_monitor"
     FOOTPRINT_PARAM      = "footprint"
+    COLLISION_TIME_PARAM = "FootprintApproach.time_before_collision"
+
+    COLLISION_TIME_NORMAL = 0.5
+    COLLISION_TIME_NEAR_GOAL = 1.1
 
     def __init__(self):
         super().__init__("footprint_publisher")
@@ -83,9 +89,13 @@ class FootprintPublisherNode(Node):
         self._global_param_client = self.create_client(
             SetParameters, f"{self.GLOBAL_FP_PARAM_NODE}/set_parameters"
         )
+        self._collision_param_client = self.create_client(
+            SetParameters, f"{self.COLLISION_MONITOR_NODE}/set_parameters"
+        )
 
         # ── State ─────────────────────────────────────────────────────────
         self._current_enabled: bool | None = None  # track last state
+        self._near_goal_active = False
 
         # ── Subscriber ────────────────────────────────────────────────────
         self._sub = self.create_subscription(
@@ -94,11 +104,18 @@ class FootprintPublisherNode(Node):
             self._enabled_callback,
             10,
         )
+        self._near_goal_sub = self.create_subscription(
+            Bool,
+            self.NEAR_GOAL_TOPIC,
+            self._near_goal_callback,
+            10,
+        )
 
         self.get_logger().info("FootprintPublisherNode started – waiting for /enabled …")
 
         # Publish the compact footprint at startup (safe default)
         self._apply_footprint(enabled=False)
+        self._apply_collision_mode(near_goal=False)
 
     # ── Callback ─────────────────────────────────────────────────────────────
 
@@ -112,6 +129,12 @@ class FootprintPublisherNode(Node):
             f"({'25×35 cm extended' if msg.data else '25×25 cm compact'} footprint)"
         )
         self._apply_footprint(enabled=msg.data)
+
+    def _near_goal_callback(self, msg: Bool) -> None:
+        if msg.data == self._near_goal_active:
+            return
+        self._near_goal_active = msg.data
+        self._apply_collision_mode(near_goal=msg.data)
 
     # ── Footprint application ─────────────────────────────────────────────────
 
@@ -130,6 +153,19 @@ class FootprintPublisherNode(Node):
 
         self.get_logger().debug(f"Footprint applied: {fp_string}")
 
+    def _apply_collision_mode(self, near_goal: bool) -> None:
+        time_before_collision = (
+            self.COLLISION_TIME_NEAR_GOAL
+            if near_goal
+            else self.COLLISION_TIME_NORMAL
+        )
+        self._set_double_param(
+            self._collision_param_client,
+            self.COLLISION_TIME_PARAM,
+            time_before_collision,
+            'collision_monitor',
+        )
+
     def _set_footprint_param(self, client, fp_string: str, label: str) -> None:
         from rcl_interfaces.msg import Parameter as RclParameter, ParameterType, ParameterValue
 
@@ -145,6 +181,30 @@ class FootprintPublisherNode(Node):
             string_value=fp_string,
         )
         param = RclParameter(name=self.FOOTPRINT_PARAM, value=param_value)
+
+        from rcl_interfaces.srv import SetParameters
+        req = SetParameters.Request()
+        req.parameters = [param]
+
+        future = client.call_async(req)
+        future.add_done_callback(
+            lambda f: self._param_set_done(f, label)
+        )
+
+    def _set_double_param(self, client, param_name: str, value: float, label: str) -> None:
+        from rcl_interfaces.msg import Parameter as RclParameter, ParameterType, ParameterValue
+
+        if not client.service_is_ready():
+            self.get_logger().warn(
+                f"{label} parameter service not available – {param_name} update skipped."
+            )
+            return
+
+        param_value = ParameterValue(
+            type=ParameterType.PARAMETER_DOUBLE,
+            double_value=float(value),
+        )
+        param = RclParameter(name=param_name, value=param_value)
 
         from rcl_interfaces.srv import SetParameters
         req = SetParameters.Request()

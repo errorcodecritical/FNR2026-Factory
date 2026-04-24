@@ -18,9 +18,17 @@ factory_autonomy:
     map_frame: "map"
 
     nav_action_name: "navigate_to_pose"
+    compute_path_service: "/compute_path_to_pose"
+    compute_path_timeout_seconds: 0.35
+    path_cost_weight_pickup: 1.0
+    path_cost_weight_dropoff: 1.0
+    path_cost_max_candidates: 8
     nav_server_wait_seconds: 1.0
     nav_retry_delay_seconds: 2.0
     max_nav_retries: 1
+    near_goal_topic: "/factory_autonomy/near_goal"
+    near_goal_distance_m: 0.55
+    near_goal_hysteresis_m: 0.10
 
     pickup_pause_seconds: 2.0
     dropoff_pause_seconds: 1.0

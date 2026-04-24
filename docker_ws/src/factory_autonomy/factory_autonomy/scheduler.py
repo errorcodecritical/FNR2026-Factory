@@ -74,8 +74,13 @@ class FactoryPlanner:
     """Select the next movement from the current factory state."""
 
     def choose_next(self, snapshot: FactorySnapshot) -> Optional[TransportTask]:
+        candidates = self.candidate_tasks(snapshot)
+        return candidates[0] if candidates else None
+
+    def candidate_tasks(self, snapshot: FactorySnapshot) -> list[TransportTask]:
         occupied_outputs = list(_machine_output_sources(snapshot))
         incoming_sources = list(_incoming_sources(snapshot))
+        candidates: list[TransportTask] = []
 
         # Priority 1 and 2: load parts that still need processing.
         for desired_type in (PART_RAW, PART_INTERMEDIATE):
@@ -83,22 +88,28 @@ class FactoryPlanner:
                 if _slot_value(snapshot, source) == desired_type:
                     task = self._task_for_source(snapshot, source)
                     if task is not None:
-                        return task
+                        candidates.append(task)
+
+        if candidates:
+            return candidates
 
         # Priority 3: unload processed machine outputs.
         for source in occupied_outputs:
             task = self._task_for_source(snapshot, source)
             if task is not None:
-                return task
+                candidates.append(task)
+
+        if candidates:
+            return candidates
 
         # Priority 4: move final incoming parts to the outgoing warehouse.
         for source in incoming_sources:
             if _slot_value(snapshot, source) == PART_FINAL:
                 task = self._task_for_source(snapshot, source)
                 if task is not None:
-                    return task
+                    candidates.append(task)
 
-        return None
+        return candidates
 
     def _task_for_source(
         self,

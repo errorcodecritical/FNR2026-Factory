@@ -14,16 +14,20 @@ import json
 import math
 import socket
 import time
+from typing import Iterable
 from typing import List, Optional
 
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
+from nav2_msgs.srv import ComputePathToPose
 import rclpy
 from rclpy.action import ActionClient
+from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, String
+from tf2_ros import Buffer, TransformException, TransformListener
 
 from .crate_protocol import (
     FactorySnapshot,
@@ -69,11 +73,15 @@ class FactoryAutonomyNode(Node):
         self._planner = FactoryPlanner()
         self._snapshot = FactorySnapshot()
         self._eletro_qos = _latched_bool_qos()
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
 
         self._nav_client = ActionClient(self, NavigateToPose, self._nav_action_name)
+        self._compute_path_client = self.create_client(ComputePathToPose, self._compute_path_service)
         self._status_pub = self.create_publisher(String, self._status_topic, 10)
         self._goal_pub = self.create_publisher(PoseStamped, self._selected_goal_topic, 10)
         self._eletro_pub = self.create_publisher(Bool, self._eletro_topic, self._eletro_qos)
+        self._near_goal_pub = self.create_publisher(Bool, self._near_goal_topic, self._eletro_qos)
 
         self._udp_sock = self._open_udp_socket()
         self._server_address = (self._server_host, self._server_port)
@@ -99,6 +107,7 @@ class FactoryAutonomyNode(Node):
         self._next_dispatch_time = 0.0
         self._nav_attempts = 0
         self._last_feedback_distance: Optional[float] = None
+        self._near_goal_active = False
 
         self.create_timer(1.0 / self._udp_poll_hz, self._poll_udp)
         self.create_timer(1.0 / self._tick_hz, self._tick)
@@ -109,6 +118,7 @@ class FactoryAutonomyNode(Node):
             f'loaded {len(self._waypoints.names())} waypoints'
         )
         self._publish_eletro(False, reason='startup')
+        self._publish_near_goal(False, force=True)
         self._publish_status(force=True)
 
     def destroy_node(self):
@@ -133,9 +143,17 @@ class FactoryAutonomyNode(Node):
         self.declare_parameter('waypoints_file', '/shared/factory_waypoints.yaml')
         self.declare_parameter('map_frame', 'map')
         self.declare_parameter('nav_action_name', 'navigate_to_pose')
+        self.declare_parameter('compute_path_service', '/compute_path_to_pose')
+        self.declare_parameter('compute_path_timeout_seconds', 0.35)
+        self.declare_parameter('path_cost_weight_pickup', 1.0)
+        self.declare_parameter('path_cost_weight_dropoff', 1.0)
+        self.declare_parameter('path_cost_max_candidates', 8)
         self.declare_parameter('nav_server_wait_seconds', 1.0)
         self.declare_parameter('nav_retry_delay_seconds', 2.0)
         self.declare_parameter('max_nav_retries', 1)
+        self.declare_parameter('near_goal_topic', '/factory_autonomy/near_goal')
+        self.declare_parameter('near_goal_distance_m', 0.55)
+        self.declare_parameter('near_goal_hysteresis_m', 0.10)
         self.declare_parameter('pickup_pause_seconds', 2.0)
         self.declare_parameter('dropoff_pause_seconds', 1.0)
         self.declare_parameter('autostart', True)
@@ -160,9 +178,17 @@ class FactoryAutonomyNode(Node):
         self._waypoints_file = str(get('waypoints_file').value)
         self._map_frame = str(get('map_frame').value)
         self._nav_action_name = str(get('nav_action_name').value)
+        self._compute_path_service = str(get('compute_path_service').value)
+        self._compute_path_timeout_seconds = float(get('compute_path_timeout_seconds').value)
+        self._path_cost_weight_pickup = float(get('path_cost_weight_pickup').value)
+        self._path_cost_weight_dropoff = float(get('path_cost_weight_dropoff').value)
+        self._path_cost_max_candidates = int(get('path_cost_max_candidates').value)
         self._nav_server_wait_seconds = float(get('nav_server_wait_seconds').value)
         self._nav_retry_delay_seconds = float(get('nav_retry_delay_seconds').value)
         self._max_nav_retries = int(get('max_nav_retries').value)
+        self._near_goal_topic = str(get('near_goal_topic').value)
+        self._near_goal_distance_m = float(get('near_goal_distance_m').value)
+        self._near_goal_hysteresis_m = float(get('near_goal_hysteresis_m').value)
         self._pickup_pause_seconds = float(get('pickup_pause_seconds').value)
         self._dropoff_pause_seconds = float(get('dropoff_pause_seconds').value)
         self._autostart = bool(get('autostart').value)
@@ -351,7 +377,7 @@ class FactoryAutonomyNode(Node):
         if self._current_task is not None:
             return
 
-        task = self._planner.choose_next(self._snapshot)
+        task = self._select_next_task()
         if task is None:
             self._last_event = 'no transport task available; waiting for machine/output changes'
             return
@@ -360,6 +386,65 @@ class FactoryAutonomyNode(Node):
         self._current_leg = 'pickup'
         self._nav_attempts = 0
         self._send_navigation_goal(task.pickup_waypoint, leg='pickup')
+
+    def _select_next_task(self) -> Optional[TransportTask]:
+        candidates = self._planner.candidate_tasks(self._snapshot)
+        if not candidates:
+            return None
+
+        if len(candidates) == 1:
+            return candidates[0]
+
+        limited = candidates[: max(1, self._path_cost_max_candidates)]
+
+        start_pose = self._current_robot_pose()
+        if start_pose is None:
+            self.get_logger().warning('could not get current pose for path-cost tie-break; falling back to scheduler order')
+            return limited[0]
+
+        best_task: Optional[TransportTask] = None
+        best_score = float('inf')
+        used_path_cost = False
+
+        for task in limited:
+            pickup_waypoint = self._waypoints.resolve(task.pickup_waypoint)
+            dropoff_waypoint = self._waypoints.resolve(task.dropoff_waypoint)
+            if pickup_waypoint is None or dropoff_waypoint is None:
+                continue
+
+            pickup_pose = self._pose_for_waypoint(pickup_waypoint)
+            dropoff_pose = self._pose_for_waypoint(dropoff_waypoint)
+
+            path_cost_to_pickup = self._path_cost(start_pose, pickup_pose)
+            path_cost_pickup_to_dropoff = self._path_cost(pickup_pose, dropoff_pose)
+
+            if path_cost_to_pickup is None:
+                path_cost_to_pickup = self._euclidean_distance(start_pose, pickup_pose)
+            else:
+                used_path_cost = True
+
+            if path_cost_pickup_to_dropoff is None:
+                path_cost_pickup_to_dropoff = self._euclidean_distance(pickup_pose, dropoff_pose)
+            else:
+                used_path_cost = True
+
+            score = (
+                self._path_cost_weight_pickup * path_cost_to_pickup
+                + self._path_cost_weight_dropoff * path_cost_pickup_to_dropoff
+            )
+            if score < best_score:
+                best_score = score
+                best_task = task
+
+        if best_task is None:
+            return limited[0]
+
+        if used_path_cost:
+            self.get_logger().info(
+                f'path-cost selected task {best_task.to_dict()} (score={best_score:.3f})'
+            )
+
+        return best_task
 
     def _send_navigation_goal(self, waypoint_name: str, leg: str) -> None:
         if self._current_task is None:
@@ -429,6 +514,7 @@ class FactoryAutonomyNode(Node):
     def _nav_feedback_cb(self, feedback_msg) -> None:
         feedback = feedback_msg.feedback
         self._last_feedback_distance = getattr(feedback, 'distance_remaining', None)
+        self._update_near_goal_mode(self._last_feedback_distance)
 
     def _nav_result_cb(self, future) -> None:
         self._goal_handle = None
@@ -461,6 +547,7 @@ class FactoryAutonomyNode(Node):
             self._last_event = f'arrived at dropoff {self._current_task.target.label()}'
 
         self._nav_attempts = 0
+        self._publish_near_goal(False)
         self.get_logger().info(self._last_event)
         self._publish_status(force=True)
 
@@ -512,6 +599,91 @@ class FactoryAutonomyNode(Node):
         self._nav_attempts = 0
         self._last_feedback_distance = None
         self._state = STATE_IDLE
+        self._publish_near_goal(False)
+
+    def _current_robot_pose(self) -> Optional[PoseStamped]:
+        try:
+            transform = self._tf_buffer.lookup_transform(
+                self._map_frame,
+                'base_link',
+                rclpy.time.Time(),
+                timeout=Duration(seconds=0.15),
+            )
+        except TransformException:
+            return None
+
+        pose = PoseStamped()
+        pose.header.stamp = self.get_clock().now().to_msg()
+        pose.header.frame_id = self._map_frame
+        pose.pose.position.x = transform.transform.translation.x
+        pose.pose.position.y = transform.transform.translation.y
+        pose.pose.position.z = 0.0
+        pose.pose.orientation = transform.transform.rotation
+        return pose
+
+    def _path_cost(self, start: PoseStamped, goal: PoseStamped) -> Optional[float]:
+        if not self._compute_path_client.wait_for_service(timeout_sec=self._compute_path_timeout_seconds):
+            return None
+
+        request = ComputePathToPose.Request()
+        request.start = start
+        request.goal = goal
+        request.planner_id = ''
+        request.use_start = True
+
+        future = self._compute_path_client.call_async(request)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=self._compute_path_timeout_seconds)
+
+        if not future.done() or future.result() is None:
+            return None
+
+        response = future.result()
+        path = response.path
+        if not path.poses:
+            return None
+        return self._path_length(path.poses)
+
+    def _path_length(self, poses: Iterable[PoseStamped]) -> float:
+        total = 0.0
+        previous = None
+        for pose in poses:
+            if previous is not None:
+                dx = pose.pose.position.x - previous.pose.position.x
+                dy = pose.pose.position.y - previous.pose.position.y
+                total += math.hypot(dx, dy)
+            previous = pose
+        return total
+
+    def _euclidean_distance(self, pose_a: PoseStamped, pose_b: PoseStamped) -> float:
+        dx = pose_a.pose.position.x - pose_b.pose.position.x
+        dy = pose_a.pose.position.y - pose_b.pose.position.y
+        return math.hypot(dx, dy)
+
+    def _update_near_goal_mode(self, distance_remaining: Optional[float]) -> None:
+        if distance_remaining is None:
+            return
+
+        enter_threshold = self._near_goal_distance_m
+        exit_threshold = self._near_goal_distance_m + self._near_goal_hysteresis_m
+
+        desired_state = self._near_goal_active
+        if self._near_goal_active:
+            if distance_remaining > exit_threshold:
+                desired_state = False
+        else:
+            if distance_remaining <= enter_threshold:
+                desired_state = True
+
+        self._publish_near_goal(desired_state)
+
+    def _publish_near_goal(self, active: bool, force: bool = False) -> None:
+        if not force and active == self._near_goal_active:
+            return
+
+        self._near_goal_active = active
+        msg = Bool()
+        msg.data = active
+        self._near_goal_pub.publish(msg)
 
     def _publish_status(self, force: bool = False) -> None:
         now = time.time()

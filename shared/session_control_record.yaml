@@ -10,6 +10,7 @@ session_control:
     record_topics:
       - /scan
       - /imu/data
+      - /odom_wheel
       - /odometry/filtered
       - /tf
       - /tf_static
