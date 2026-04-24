@@ -63,12 +63,16 @@ class SessionControl(Node):
         self._bag_proc: subprocess.Popen | None = None
         self._bag_output_dir: Path | None = None
         self._last_waypoint_time = 0.0
+        self._started_time = self.get_clock().now().nanoseconds / 1e9
+        self._last_joy_time: float | None = None
+        self._joy_warning_active = False
 
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
 
         self._status_pub = self.create_publisher(String, '/session_control/status', 10)
         self._joy_sub = self.create_subscription(Joy, self.joy_topic, self._on_joy, 20)
+        self._joy_watchdog_timer = self.create_timer(2.0, self._check_joy_stream)
 
         self.get_logger().info(
             f'session_control started in mode={self.mode}, joy_topic={self.joy_topic}, '
@@ -86,6 +90,12 @@ class SessionControl(Node):
         self._status_pub.publish(message)
 
     def _on_joy(self, message: Joy) -> None:
+        self._last_joy_time = self.get_clock().now().nanoseconds / 1e9
+        if self._joy_warning_active:
+            self.get_logger().info(f'joy stream detected on {self.joy_topic}')
+            self._publish_status('joy_stream_detected')
+            self._joy_warning_active = False
+
         buttons = [int(value) for value in message.buttons]
         if not self._previous_buttons:
             self._previous_buttons = buttons
@@ -113,6 +123,27 @@ class SessionControl(Node):
         if index < 0 or index >= len(buttons) or index >= len(self._previous_buttons):
             return False
         return self._previous_buttons[index] == 0 and buttons[index] == 1
+
+    def _check_joy_stream(self) -> None:
+        now = self.get_clock().now().nanoseconds / 1e9
+        if self._last_joy_time is None:
+            elapsed = now - self._started_time
+            if elapsed >= 6.0 and not self._joy_warning_active:
+                self.get_logger().warning(
+                    f'no Joy messages received on {self.joy_topic}; '
+                    'record/waypoint buttons will not work until joystick input is available'
+                )
+                self._publish_status('waiting_for_joy_stream')
+                self._joy_warning_active = True
+            return
+
+        elapsed_since_joy = now - self._last_joy_time
+        if elapsed_since_joy >= 6.0 and not self._joy_warning_active:
+            self.get_logger().warning(
+                f'Joy stream on {self.joy_topic} timed out ({elapsed_since_joy:.1f}s since last message)'
+            )
+            self._publish_status('joy_stream_timeout')
+            self._joy_warning_active = True
 
     def _start_recording(self) -> None:
         if self._bag_proc is not None and self._bag_proc.poll() is None:

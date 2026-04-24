@@ -4,8 +4,8 @@ This workspace now uses `slam_toolbox` end-to-end (no AMCL, no Cartographer).
 
 ## Xbox Keybinds
 
-- `START` (button 7): start recording sensor session
-- `BACK` (button 6): stop recording sensor session
+- `A` (button 0): start recording sensor session
+- `B` (button 1): stop recording sensor session
 - `X` (button 2): save waypoint during localization
 
 Keybind params are in:
@@ -27,8 +27,8 @@ docker compose --profile record_session up session_record
 ```
 
 Drive with the Xbox controller:
-- Press `START` to begin rosbag recording
-- Press `BACK` to stop recording
+- Press `A` to begin rosbag recording
+- Press `B` to stop recording
 
 Bags are stored in `/shared/recordings/session_YYYYMMDD_HHMMSS`.
 `/shared/recordings/latest` is updated automatically.
@@ -84,3 +84,34 @@ The autonomy node:
 - RViz fixed frame should be `map`.
 - If joystick indices differ, update the two `session_control_*.yaml` files.
 - Offline mapping script path: `/shared/offline_map_from_bag.sh`.
+
+## 6) Bag-Based Localization Replay + RViz Container
+
+Use this when validating localization against a recorded dataset:
+
+1. Start localization (sim time) with the replay config:
+
+```bash
+docker compose --profile slam_localization run --rm \
+	-v "$PWD/datasets:/datasets" \
+	--entrypoint bash slam_localization -lc \
+	'source /opt/ros/jazzy/setup.bash && ros2 launch slam_toolbox localization_launch.py \
+	slam_params_file:=/shared/slam_configs/localization_bag_replay.yaml use_sim_time:=true'
+```
+
+2. Start RViz in container with sim time enabled:
+
+```bash
+docker compose --profile visualization run --rm --entrypoint bash rviz2 -lc \
+	'source /opt/ros/jazzy/setup.bash && ros2 run rviz2 rviz2 -d /shared/view.rviz --ros-args -p use_sim_time:=true'
+```
+
+3. Replay only relevant topics from bag:
+
+```bash
+docker compose --profile offline_mapping run --rm \
+	-v "$PWD/datasets:/datasets" \
+	--entrypoint bash offline_map_builder -lc \
+	'source /opt/ros/jazzy/setup.bash && ros2 bag play /datasets/rosbag2_2026_04_24-01_24_09 \
+	--clock -r 0.7 --topics /scan /odometry/filtered /tf /tf_static'
+```

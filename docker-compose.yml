@@ -243,6 +243,8 @@ services:
       dockerfile: Dockerfile.localization
     container_name: fnr26-session-record
     profiles: [record_session]
+    depends_on:
+      - teleop
     network_mode: host
     volumes:
       - ./shared:/shared

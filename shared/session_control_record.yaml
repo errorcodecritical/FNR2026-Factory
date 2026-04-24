@@ -2,8 +2,8 @@ session_control:
   ros__parameters:
     mode: record
     joy_topic: /joy
-    start_button_idx: 7       # START
-    stop_button_idx: 6        # BACK
+    start_button_idx: 0       # A
+    stop_button_idx: 1        # B
     waypoint_button_idx: 2    # X (unused in record mode)
     recordings_dir: /shared/recordings
     record_topics:
