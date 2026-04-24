@@ -48,6 +48,8 @@ if ! [[ "${MAP_RESOLUTION}" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   exit 1
 fi
 
+echo "Using map resolution: ${MAP_RESOLUTION} m/px"
+
 mkdir -p "${MAP_DIR}"
 
 TMP_SLAM_PARAMS=$(mktemp /tmp/slam_params_resolution_XXXX.yaml)

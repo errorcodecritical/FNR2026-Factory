@@ -62,6 +62,12 @@ case "$stage" in
 		resolution=""
 		if [[ -z "$mode" ]]; then
 			:
+		elif [[ "$mode" == --resolution=* ]]; then
+			resolution="${mode#--resolution=}"
+			if [[ -z "$resolution" ]]; then
+				echo "Missing value for --resolution" >&2
+				exit 1
+			fi
 		elif [[ "$mode" == "--resolution" ]]; then
 			resolution="${3:-}"
 			if [[ -z "$resolution" ]]; then
@@ -77,9 +83,11 @@ case "$stage" in
 		fi
 
 		if [[ -n "$resolution" ]]; then
-			MAP_RESOLUTION="$resolution" docker compose --profile offline_mapping up offline_map_builder
+			echo "Running offline map with MAP_RESOLUTION=$resolution m/px"
+			docker compose --profile offline_mapping run --rm -e MAP_RESOLUTION="$resolution" offline_map_builder
 		else
-			docker compose --profile offline_mapping up offline_map_builder
+			echo "Running offline map with default MAP_RESOLUTION=0.05 m/px"
+			docker compose --profile offline_mapping run --rm offline_map_builder
 		fi
 		;;
 
