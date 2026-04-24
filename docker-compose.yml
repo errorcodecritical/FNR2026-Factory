@@ -1,8 +1,31 @@
-version: '3.8'
+version: "3.8"
+
+#############################################
+# GLOBAL SETTINGS
+#############################################
+
+x-common-env: &common-env
+  ROS_DOMAIN_ID: 0
+  RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+  CYCLONEDDS_URI: /shared/cyclonedds.xml
+
+x-common-volumes: &common-volumes
+  - ./shared:/shared
+  - ./docker_ws:/docker_ws
+
+x-x11-volumes: &x11-volumes
+  - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+#############################################
+# SERVICES
+#############################################
 
 services:
 
-  # Build runtime image once
+  #############################################
+  # BUILD RUNTIME IMAGE (once)
+  #############################################
+
   runtime:
     build:
       context: .
@@ -11,40 +34,57 @@ services:
     image: fnr26-runtime:latest
     command: "true"
 
-
-
-  # ─────────────────────────────────
-  # RPLIDAR
-  # ─────────────────────────────────
+  #############################################
+  # HARDWARE DRIVERS
+  #############################################
 
   rplidar:
     image: fnr26-runtime:latest
     container_name: rplidar
-
     privileged: true
     network_mode: host
 
     volumes:
       - /dev/ttyUSB_CP210X:/dev/ttyUSB_CP210X
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - *common-volumes
+      - *x11-volumes
 
     environment:
+      <<: *common-env
       DISPLAY: ${DISPLAY}
+
+    tty: true
 
     command: >
       bash -c "
       ros2 run rplidar_ros rplidar_composition
       --ros-args
       -p serial_port:=/dev/ttyUSB_CP210X
+      -p serial_baudrate:=115200
+      -p frame_id:=lidar_link
       "
 
+  minimu9_publisher:
+    image: fnr26-runtime:latest
+    container_name: minimu9-publisher
 
+    privileged: true
+    network_mode: host
 
-  # ─────────────────────────────────
-  # MECANUM DRIVER
-  # ─────────────────────────────────
+    volumes:
+      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
+      - *common-volumes
+
+    environment:
+      <<: *common-env
+
+    command: >
+      bash -c "
+      ros2 run minimu9_publisher
+      minimu9_node
+      --ros-args
+      --params-file /shared/minimu9_params.yaml
+      "
 
   mecanum_driver:
     image: fnr26-runtime:latest
@@ -55,8 +95,10 @@ services:
 
     volumes:
       - /dev/ttyACM_PICO:/dev/ttyACM_PICO
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
+      - *common-volumes
+
+    environment:
+      <<: *common-env
 
     command: >
       bash -c "
@@ -65,11 +107,60 @@ services:
       params_file:=/shared/mecanum_params.yaml
       "
 
+  teleop:
+    image: fnr26-runtime:latest
+    container_name: teleop
 
+    privileged: true
+    network_mode: host
 
-  # ─────────────────────────────────
-  # IMU FILTER
-  # ─────────────────────────────────
+    volumes:
+      - *common-volumes
+      - /dev/input:/dev/input:rw
+
+    environment:
+      <<: *common-env
+
+    tty: true
+
+    command: >
+      bash -c "
+      ros2 launch teleop_twist_joy
+      teleop-launch.py
+      config_filepath:=/shared/teleop_params.yaml
+      "
+
+  #############################################
+  # ROBOT MODEL + TF
+  #############################################
+
+  publisher:
+    image: fnr26-runtime:latest
+    container_name: robot-publisher
+
+    privileged: true
+    network_mode: host
+
+    volumes:
+      - *common-volumes
+      - *x11-volumes
+
+    environment:
+      <<: *common-env
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: 1
+
+    tty: true
+
+    command: >
+      bash -c "
+      ros2 launch robot_description
+      robot_state_publisher.launch.py
+      "
+
+  #############################################
+  # FILTERS
+  #############################################
 
   imu_filter:
     image: fnr26-runtime:latest
@@ -78,8 +169,10 @@ services:
     network_mode: host
 
     volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
+      - *common-volumes
+
+    environment:
+      <<: *common-env
 
     command: >
       bash -c "
@@ -90,12 +183,6 @@ services:
       --params-file /shared/imu_filter_madgwick.yaml
       "
 
-
-
-  # ─────────────────────────────────
-  # EKF LOCALIZATION
-  # ─────────────────────────────────
-
   robot_localization:
     image: fnr26-runtime:latest
     container_name: robot-localization
@@ -103,8 +190,10 @@ services:
     network_mode: host
 
     volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
+      - *common-volumes
+
+    environment:
+      <<: *common-env
 
     command: >
       bash -c "
@@ -115,81 +204,186 @@ services:
       --params-file /shared/ekf.yaml
       "
 
-
-
-  # ─────────────────────────────────
-  # SLAM MAPPING
-  # ─────────────────────────────────
+  #############################################
+  # SLAM SYSTEM
+  #############################################
 
   slam_mapping:
     image: fnr26-runtime:latest
     container_name: slam-mapping
 
+    profiles: ["slam_mapping"]
+
     privileged: true
     network_mode: host
 
     volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - *common-volumes
+      - *x11-volumes
 
     environment:
+      <<: *common-env
       DISPLAY: ${DISPLAY}
+
+    tty: true
 
     command: >
       bash -c "
+      sleep 5 &&
       ros2 launch slam_toolbox
       online_async_launch.py
       slam_params_file:=/shared/slam_configs/online_async.yaml
+      use_sim_time:=false
       "
 
+  slam_localization:
+    image: fnr26-runtime:latest
+    container_name: slam-localization
 
+    profiles: ["slam_localization"]
 
-  # ─────────────────────────────────
-  # NAV2
-  # ─────────────────────────────────
+    privileged: true
+    network_mode: host
+
+    volumes:
+      - *common-volumes
+      - *x11-volumes
+
+    environment:
+      <<: *common-env
+      DISPLAY: ${DISPLAY}
+
+    tty: true
+
+    command: >
+      bash -c "
+      sleep 5 &&
+      ros2 launch slam_toolbox
+      localization_launch.py
+      slam_params_file:=/shared/slam_configs/localization.yaml
+      use_sim_time:=false
+      "
+
+  map_saver:
+    image: fnr26-runtime:latest
+    container_name: map-saver
+
+    profiles: ["map_save"]
+
+    network_mode: host
+
+    volumes:
+      - *common-volumes
+
+    environment:
+      <<: *common-env
+
+    command: bash /shared/save_map.sh
+
+  #############################################
+  # NAVIGATION
+  #############################################
 
   nav2:
     image: fnr26-runtime:latest
     container_name: nav2
 
+    profiles: ["nav2_navigation"]
+
     privileged: true
     network_mode: host
 
     volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
+      - *common-volumes
+      - *x11-volumes
+
+    environment:
+      <<: *common-env
+      DISPLAY: ${DISPLAY}
+      MAP_FILE: ${MAP_FILE:-/shared/maps/fnr26_map}
+
+    tty: true
 
     command: >
       bash -c "
       sleep 8 &&
-      ros2 launch nav2_localization
-      nav2_localization.launch.py
-      map:=/shared/maps/fnr26_map.yaml
+      ros2 launch nav2_bringup
+      bringup_launch.py
+      map:=${MAP_FILE}.yaml
       params_file:=/shared/nav2_params.yaml
+      use_sim_time:=false
       "
 
+  #############################################
+  # AUTONOMY
+  #############################################
 
+  factory_autonomy:
+    image: fnr26-runtime:latest
+    container_name: factory-autonomy
 
-  # ─────────────────────────────────
-  # RVIZ2
-  # ─────────────────────────────────
+    network_mode: host
+
+    volumes:
+      - *common-volumes
+
+    environment:
+      <<: *common-env
+
+    command: >
+      bash -c "
+      sleep 12 &&
+      ros2 launch factory_autonomy
+      autonomy.launch.py
+      params_file:=/shared/autonomy_params.yaml
+      "
+
+  electromagnet_gpio:
+    image: fnr26-runtime:latest
+    container_name: electromagnet
+
+    privileged: true
+    network_mode: host
+
+    volumes:
+      - *common-volumes
+
+    environment:
+      <<: *common-env
+
+    command: >
+      bash -c "
+      ros2 launch electromagnet_gpio
+      electromagnet.launch.py
+      params_file:=/shared/eletro_params.yaml
+      "
+
+  #############################################
+  # VISUALIZATION
+  #############################################
 
   rviz2:
     image: fnr26-runtime:latest
     container_name: rviz2
 
+    profiles: ["visualization"]
+
     privileged: true
     network_mode: host
 
     volumes:
-      - ./shared:/shared
-      - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - *common-volumes
+      - *x11-volumes
 
     environment:
+      <<: *common-env
       DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: 1
+
+    tty: true
 
     command: >
+      bash -c "
       ros2 run rviz2 rviz2
       -d /shared/view.rviz
+      "
