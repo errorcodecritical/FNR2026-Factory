@@ -49,6 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-nav2-bringup \
     ros-${ROS_DISTRO}-nav2-bt-navigator \
     ros-${ROS_DISTRO}-nav2-controller \
+    ros-${ROS_DISTRO}-nav2-velocity-smoother \
     ros-${ROS_DISTRO}-nav2-planner \
     ros-${ROS_DISTRO}-nav2-behaviors \
     ros-${ROS_DISTRO}-nav2-lifecycle-manager \

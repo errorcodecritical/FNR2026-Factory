@@ -74,6 +74,7 @@ def generate_launch_description():
     lifecycle_nodes = [
         "planner_server",
         "controller_server",
+        "velocity_smoother",
         "bt_navigator",
         "behavior_server",
         "collision_monitor",
@@ -97,9 +98,18 @@ def generate_launch_description():
         output="screen",
         arguments=["--ros-args", "--log-level", log_level],
         parameters=[configured_params],
-        # Remap controller output → collision_monitor reads cmd_vel_smoothed
-        # and forwards safe commands to /cmd_vel
-        remappings=[("cmd_vel", "cmd_vel_smoothed")],
+        # Controller output is smoothed before collision_monitor forwards safe
+        # commands to the motor driver on /cmd_vel.
+        remappings=[("cmd_vel", "cmd_vel_nav")],
+    )
+
+    velocity_smoother = Node(
+        package="nav2_velocity_smoother",
+        executable="velocity_smoother",
+        name="velocity_smoother",
+        output="screen",
+        arguments=["--ros-args", "--log-level", log_level],
+        parameters=[configured_params],
     )
 
     bt_navigator = Node(
@@ -200,6 +210,7 @@ def generate_launch_description():
         # Nodes
         planner_server,
         controller_server,
+        velocity_smoother,
         bt_navigator,
         recoveries_server,
         costmap_nodes,
