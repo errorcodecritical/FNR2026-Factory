@@ -2,9 +2,9 @@ version: "3.8"
 
 services:
 
-  ########################################
-  # BUILD RUNTIME IMAGE
-  ########################################
+#########################################
+# BUILD RUNTIME IMAGE
+#########################################
 
   runtime:
     build:
@@ -12,26 +12,24 @@ services:
       dockerfile: Dockerfile
       target: runtime
     image: fnr26-runtime:latest
+    container_name: fnr26-build-runtime
     command: "true"
 
-
-
-  ########################################
-  # HARDWARE DRIVERS
-  ########################################
+#########################################
+# HARDWARE LAYER
+#########################################
 
   rplidar:
     image: fnr26-runtime:latest
-    container_name: rplidar
-
+    container_name: fnr26-hw-lidar
     privileged: true
     network_mode: host
 
     volumes:
+      - /dev/ttyUSB_CP210X:/dev/ttyUSB_CP210X
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - /dev/ttyUSB_CP210X:/dev/ttyUSB_CP210X
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
     environment:
       DISPLAY: ${DISPLAY}
@@ -39,85 +37,96 @@ services:
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      ros2 run rplidar_ros rplidar_composition
-      --ros-args
-      -p serial_port:=/dev/ttyUSB_CP210X
-      -p serial_baudrate:=115200
-      -p frame_id:=lidar_link
-      "
-
-
+    command:
+      - rplidar_ros
+      - bash
+      - -c
+      - ros2 run rplidar_ros rplidar_composition --ros-args --remap __node:=rplidar_node -p rplidar_node:serial_port:="/dev/ttyUSB_CP210X" -p rplidar_node:serial_baudrate:=115200 -p rplidar_node:frame_id:="lidar_link" -p rplidar_node:inverted:=false -p rplidar_node:angle_compensate:=true
+#########################################
 
   minimu9_publisher:
     image: fnr26-runtime:latest
-    container_name: minimu9-publisher
-
+    container_name: fnr26-hw-imu
     privileged: true
     network_mode: host
 
     volumes:
+      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - /dev/ttyACM_ARDUINO:/dev/ttyACM_ARDUINO
 
     environment:
       ROS_DOMAIN_ID: 0
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      ros2 run minimu9_publisher
-      minimu9_node
-      --ros-args
-      --params-file /shared/minimu9_params.yaml
-      "
+    command:
+      - minimu9_publisher
+      - bash
+      - -c
+      - ros2 run minimu9_publisher minimu9_node --ros-args --params-file /shared/minimu9_params.yaml
 
-
+#########################################
 
   mecanum_driver:
     image: fnr26-runtime:latest
-    container_name: mecanum-driver
-
+    container_name: fnr26-hw-drive
     privileged: true
     network_mode: host
 
     volumes:
+      - /dev/ttyACM_PICO:/dev/ttyACM_PICO
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - /dev/ttyACM_PICO:/dev/ttyACM_PICO
 
     environment:
       ROS_DOMAIN_ID: 0
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      ros2 launch mecanum_driver
-      mecanum_driver.launch.py
-      params_file:=/shared/mecanum_params.yaml
-      "
+    command:
+      - mecanum_driver
+      - bash
+      - -c
+      - ros2 launch mecanum_driver mecanum_driver.launch.py params_file:=/shared/mecanum_params.yaml
 
+#########################################
 
+  electromagnet_gpio:
+    image: fnr26-runtime:latest
+    container_name: fnr26-hw-electromagnet
+    privileged: true
+    network_mode: host
 
-  ########################################
-  # ROBOT TF
-  ########################################
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+
+    command:
+      - electromagnet_gpio
+      - bash
+      - -c
+      - ros2 launch electromagnet_gpio electromagnet.launch.py params_file:=/shared/eletro_params.yaml
+
+#########################################
+# CORE ROBOT LAYER
+#########################################
 
   publisher:
     image: fnr26-runtime:latest
-    container_name: robot-publisher
-
+    container_name: fnr26-core-state-publisher
     privileged: true
     network_mode: host
 
     volumes:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
     environment:
       DISPLAY: ${DISPLAY}
@@ -126,22 +135,17 @@ services:
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      ros2 launch robot_description
-      robot_state_publisher.launch.py
-      "
+    command:
+      - robot_description
+      - bash
+      - -c
+      - ros2 launch robot_description robot_state_publisher.launch.py
 
-
-
-  ########################################
-  # FILTERS
-  ########################################
+#########################################
 
   imu_filter:
     image: fnr26-runtime:latest
-    container_name: imu-filter
-
+    container_name: fnr26-core-imu-filter
     network_mode: host
 
     volumes:
@@ -153,20 +157,17 @@ services:
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      sleep 3 &&
-      ros2 run imu_filter_madgwick
-      imu_filter_madgwick_node
-      --params-file /shared/imu_filter_madgwick.yaml
-      "
+    command:
+      - imu_filter_madgwick
+      - bash
+      - -c
+      - sleep 3 && ros2 run imu_filter_madgwick imu_filter_madgwick_node --ros-args --params-file /shared/imu_filter_madgwick.yaml
 
-
+#########################################
 
   robot_localization:
     image: fnr26-runtime:latest
-    container_name: robot-localization
-
+    container_name: fnr26-core-ekf
     network_mode: host
 
     volumes:
@@ -178,31 +179,26 @@ services:
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      sleep 5 &&
-      ros2 run robot_localization
-      ekf_node
-      --params-file /shared/ekf.yaml
-      "
+    command:
+      - ekf_launch
+      - bash
+      - -c
+      - sleep 5 && ros2 run robot_localization ekf_node --ros-args --params-file /shared/ekf.yaml
 
-
-
-  ########################################
-  # SLAM
-  ########################################
+#########################################
+# SLAM LAYER
+#########################################
 
   slam_mapping:
     image: fnr26-runtime:latest
-    container_name: slam-mapping
-
+    container_name: fnr26-slam-mapping
     privileged: true
     network_mode: host
 
     volumes:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
     environment:
       DISPLAY: ${DISPLAY}
@@ -210,57 +206,42 @@ services:
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      sleep 5 &&
-      ros2 launch slam_toolbox
-      online_async_launch.py
-      slam_params_file:=/shared/slam_configs/online_async.yaml
-      "
+    command:
+      - slam_toolbox
+      - bash
+      - -c
+      - sleep 5 && ros2 launch slam_toolbox online_async_launch.py slam_params_file:=/shared/slam_configs/online_async.yaml
 
+#########################################
 
-
-  ########################################
-  # NAV2
-  ########################################
-
-  nav2:
+  slam_localization:
     image: fnr26-runtime:latest
-    container_name: nav2
-
+    container_name: fnr26-slam-localization
     privileged: true
     network_mode: host
 
     volumes:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
     environment:
       DISPLAY: ${DISPLAY}
-      MAP_FILE: /shared/maps/fnr26_map
       ROS_DOMAIN_ID: 0
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      sleep 8 &&
-      ros2 launch nav2_bringup
-      bringup_launch.py
-      map:=/shared/maps/fnr26_map.yaml
-      params_file:=/shared/nav2_params.yaml
-      "
+    command:
+      - slam_toolbox
+      - bash
+      - -c
+      - sleep 5 && ros2 launch slam_toolbox localization_launch.py slam_params_file:=/shared/slam_configs/localization.yaml
 
-
-
-  ########################################
-  # MAP SAVER
-  ########################################
+#########################################
 
   map_saver:
     image: fnr26-runtime:latest
-    container_name: map-saver
-
+    container_name: fnr26-slam-map-saver
     network_mode: host
 
     volumes:
@@ -272,25 +253,102 @@ services:
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: bash /shared/save_map.sh
+    command:
+      - slam_toolbox
+      - bash
+      - -c
+      - bash /shared/save_map.sh
 
+#########################################
+# NAVIGATION
+#########################################
 
-
-  ########################################
-  # RVIZ
-  ########################################
-
-  rviz2:
+  nav2:
     image: fnr26-runtime:latest
-    container_name: rviz2
-
+    container_name: fnr26-nav-navigation
     privileged: true
     network_mode: host
 
     volumes:
       - ./shared:/shared
       - ./docker_ws:/docker_ws
-      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    environment:
+      DISPLAY: ${DISPLAY}
+      MAP_FILE: /shared/maps/fnr26_map/fnr26_map
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+
+    command:
+      - nav2_localization
+      - bash
+      - -c
+      - sleep 8 && ros2 launch nav2_localization nav2_localization.launch.py map:=/shared/maps/fnr26_map/fnr26_map.yaml params_file:=/shared/nav2_params.yaml
+
+#########################################
+# APPLICATION LAYER
+#########################################
+
+  teleop:
+    image: fnr26-runtime:latest
+    container_name: fnr26-app-teleop
+    privileged: true
+    network_mode: host
+
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+      - /dev/input:/dev/input:rw
+
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+
+    command:
+      - teleop_twist_joy
+      - bash
+      - -c
+      - ros2 launch teleop_twist_joy teleop-launch.py config_filepath:=/shared/teleop_params.yaml
+
+#########################################
+
+  factory_autonomy:
+    image: fnr26-runtime:latest
+    container_name: fnr26-app-autonomy
+    network_mode: host
+
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+
+    environment:
+      ROS_DOMAIN_ID: 0
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: /shared/cyclonedds.xml
+
+    command:
+      - factory_autonomy
+      - bash
+      - -c
+      - sleep 12 && ros2 launch factory_autonomy autonomy.launch.py params_file:=/shared/autonomy_params.yaml
+
+#########################################
+# VISUALIZATION
+#########################################
+
+  rviz2:
+    image: fnr26-runtime:latest
+    container_name: fnr26-viz-rviz
+    privileged: true
+    network_mode: host
+
+    volumes:
+      - ./shared:/shared
+      - ./docker_ws:/docker_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
     environment:
       DISPLAY: ${DISPLAY}
@@ -299,8 +357,8 @@ services:
       RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
       CYCLONEDDS_URI: /shared/cyclonedds.xml
 
-    command: >
-      bash -c "
-      ros2 run rviz2 rviz2
-      -d /shared/view.rviz
-      "
+    command:
+      - rviz2
+      - bash
+      - -c
+      - ros2 run rviz2 rviz2 -d /shared/view.rviz

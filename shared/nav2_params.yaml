@@ -1,3 +1,58 @@
+amcl:
+  ros__parameters:
+    use_sim_time: false
+    base_frame_id: "base_link"
+    odom_frame_id: "odom"
+    global_frame_id: "map"
+    scan_topic: /scan
+
+    # ── Particle filter ───────────────────────────────────────────────
+    min_particles: 500
+    max_particles: 2000
+    # How fast to recover from localisation loss — keep low to avoid
+    # injecting random particles when the robot is already localised
+    recovery_alpha_slow: 0.001
+    recovery_alpha_fast: 0.1
+
+    # ── Initial pose covariance ───────────────────────────────────────
+    # Tighter values = less spazzing on pose set; widen if pose is uncertain
+    initial_cov_xx: 0.25      # 0.5m std dev in x
+    initial_cov_yy: 0.25      # 0.5m std dev in y
+    initial_cov_aa: 0.068     # ~15 deg std dev in yaw
+
+    # ── Motion model ──────────────────────────────────────────────────
+    # Omni model for mecanum robot — critical, diff model causes divergence
+    robot_model_type: "nav2_amcl::OmniMotionModel"
+    # Noise params: lower = trust odometry more = less jitter
+    alpha1: 0.1    # rot noise from rot
+    alpha2: 0.1    # rot noise from trans
+    alpha3: 0.1    # trans noise from trans
+    alpha4: 0.1    # trans noise from rot
+    alpha5: 0.1    # strafe noise (omni only)
+
+    # ── Laser model ───────────────────────────────────────────────────
+    laser_model_type: "likelihood_field"
+    laser_max_range: 12.0
+    laser_min_range: 0.1
+    max_beams: 60
+    laser_likelihood_max_dist: 2.0
+    # Mixture weights — must sum to 1.0
+    z_hit: 0.5
+    z_short: 0.05
+    z_max: 0.05
+    z_rand: 0.5
+    sigma_hit: 0.2
+
+    # ── Update thresholds ─────────────────────────────────────────────
+    # Only update filter when robot has moved enough — reduces jitter
+    update_min_d: 0.2         # metres
+    update_min_a: 0.5         # radians (~28 deg)
+    resample_interval: 2
+
+    # ── Transform ─────────────────────────────────────────────────────
+    transform_tolerance: 0.5
+    tf_broadcast: true
+
 bt_navigator:
   ros__parameters:
     use_sim_time: false
@@ -17,9 +72,9 @@ controller_server:
       time_steps: 56
       model_dt: 0.05
       batch_size: 2000
-      vx_std: 0.2
-      vy_std: 0.2
-      wz_std: 0.4
+      vx_std: 0.1
+      vy_std: 0.1
+      wz_std: 0.2
       vx_max:  0.5
       vx_min: -0.5
       vy_max:  0.5
@@ -28,11 +83,10 @@ controller_server:
       ax_min: -3.0
       ay_max:  3.0
       az_max:  3.5
-      iteration_count: 1
-      prune_distance: 1.7
-      transform_tolerance: 0.1
-      temperature: 0.3
-      gamma: 0.015
+      iteration_count: 2
+      prune_distance: 1.0
+      temperature: 0.5
+      gamma: 0.01
       motion_model: "Omni"
       visualize: false
       TrajectoryVisualizer:
@@ -54,17 +108,17 @@ controller_server:
       GoalCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 5.0
+        cost_weight: 3.0
         threshold_to_consider: 1.0
       GoalAngleCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 3.0
+        cost_weight: 2.0
         threshold_to_consider: 0.4
       PreferForwardCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 5.0
+        cost_weight: 3.0
         threshold_to_consider: 0.4
       CostCritic:
         enabled: true
@@ -97,6 +151,7 @@ controller_server:
         threshold_to_consider: 0.4
         max_angle_to_furthest: 1.0
         forward_preference: true
+
 planner_server:
   ros__parameters:
     use_sim_time: false
@@ -104,8 +159,8 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
-      tolerance: 0.5
-      use_astar: false
+      tolerance: 0.2
+      use_astar: true
 
 local_costmap:
   ros__parameters:
@@ -113,10 +168,10 @@ local_costmap:
     global_frame: odom
     robot_base_frame: base_link
     rolling_window: true
-    robot_radius: 0.175      # ~half diagonal of 25x25cm box
+    robot_radius: 0.25      # ~half diagonal of 25x25cm box
     width: 4.0
     height: 4.0
-    resolution: 0.05
+    resolution: 0.02
     update_frequency: 5.0
     publish_frequency: 2.0
     plugins: ["obstacle_layer", "inflation_layer"]
@@ -130,7 +185,7 @@ local_costmap:
         marking: true
     inflation_layer:
       plugin: "nav2_costmap_2d::InflationLayer"
-      inflation_radius: 0.15
+      inflation_radius: 0.2
       cost_scaling_factor: 1.0
     always_send_full_costmap: true
 
@@ -140,8 +195,8 @@ global_costmap:
     global_frame: map
     robot_base_frame: base_link
     rolling_window: false
-    robot_radius: 0.175      # ~half diagonal of 25x25cm box
-    resolution: 0.05
+    robot_radius: 0.25      # ~half diagonal of 25x25cm box
+    resolution: 0.02
     update_frequency: 1.0
     publish_frequency: 1.0
     plugins: ["static_layer", "inflation_layer"]
@@ -150,7 +205,7 @@ global_costmap:
       map_subscribe_transient_local: true
     inflation_layer:
       plugin: "nav2_costmap_2d::InflationLayer"
-      inflation_radius: 0.15
+      inflation_radius: 0.2
       cost_scaling_factor: 1.0
     always_send_full_costmap: true
 
@@ -194,9 +249,9 @@ behavior_server:
     robot_base_frame: base_link
     transform_tolerance: 0.1
     simulate_ahead_time: 2.0
-    max_rotational_vel: 1.0
-    min_rotational_vel: 0.4
-    rotational_acc_lim: 3.2
+    max_rotational_vel: 1.5
+    min_rotational_vel: 0.5
+    rotational_acc_lim: 3.0
 
 lifecycle_manager:
   ros__parameters:
